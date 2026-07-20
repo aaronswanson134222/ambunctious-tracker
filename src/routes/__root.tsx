@@ -82,22 +82,25 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       {
         name: "description",
         content:
-          "Personal tracker that watches X accounts and Eldorado.gg prices and pings your Discord webhook on changes.",
+          "Personal watcher that pings a Discord webhook when tracked X accounts post or Eldorado.gg listing prices change.",
       },
-      { property: "og:title", content: "Tracker Bot" },
+      { property: "og:title", content: "Tracker Bot — X posts + Eldorado.gg prices" },
       {
         property: "og:description",
-        content: "Watch X accounts and Eldorado.gg prices. Alerts to Discord.",
+        content: "Personal watcher that pings a Discord webhook when tracked X accounts post or Eldorado.gg listing prices change.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
+      { name: "twitter:title", content: "Tracker Bot — X posts + Eldorado.gg prices" },
+      { name: "twitter:description", content: "Personal watcher that pings a Discord webhook when tracked X accounts post or Eldorado.gg listing prices change." },
+      { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/64ef8a7e-f1f2-4853-82a0-93052d8f91f2/id-preview-df845111--4643c934-856e-487c-b22f-b0ba8a7abd8c.lovable.app-1784590112283.png" },
+      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/64ef8a7e-f1f2-4853-82a0-93052d8f91f2/id-preview-df845111--4643c934-856e-487c-b22f-b0ba8a7abd8c.lovable.app-1784590112283.png" },
     ],
     links: [
       {
         rel: "stylesheet",
         href: appCss,
       },
-      { rel: "icon", href: "/favicon.ico", type: "image/x-icon" },
     ],
   }),
   shellComponent: RootShell,
