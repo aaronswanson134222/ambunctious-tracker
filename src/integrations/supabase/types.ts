@@ -14,7 +14,107 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      price_history: {
+        Row: {
+          checked_at: string
+          currency: string | null
+          id: number
+          price: number
+          product_id: string
+        }
+        Insert: {
+          checked_at?: string
+          currency?: string | null
+          id?: number
+          price: number
+          product_id: string
+        }
+        Update: {
+          checked_at?: string
+          currency?: string | null
+          id?: number
+          price?: number
+          product_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "price_history_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "tracked_products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tracked_products: {
+        Row: {
+          created_at: string
+          currency: string | null
+          id: string
+          label: string
+          last_checked_at: string | null
+          last_error: string | null
+          last_price: number | null
+          updated_at: string
+          url: string
+        }
+        Insert: {
+          created_at?: string
+          currency?: string | null
+          id?: string
+          label: string
+          last_checked_at?: string | null
+          last_error?: string | null
+          last_price?: number | null
+          updated_at?: string
+          url: string
+        }
+        Update: {
+          created_at?: string
+          currency?: string | null
+          id?: string
+          label?: string
+          last_checked_at?: string | null
+          last_error?: string | null
+          last_price?: number | null
+          updated_at?: string
+          url?: string
+        }
+        Relationships: []
+      }
+      tracked_x_accounts: {
+        Row: {
+          created_at: string
+          handle: string
+          id: string
+          last_checked_at: string | null
+          last_error: string | null
+          last_post_text: string | null
+          last_post_url: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          handle: string
+          id?: string
+          last_checked_at?: string | null
+          last_error?: string | null
+          last_post_text?: string | null
+          last_post_url?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          handle?: string
+          id?: string
+          last_checked_at?: string | null
+          last_error?: string | null
+          last_post_text?: string | null
+          last_post_url?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
