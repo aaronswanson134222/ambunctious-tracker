@@ -739,11 +739,11 @@ function Index() {
                   <select aria-label="Experience product timeframe" value={experienceLookback} onChange={(e) => setExperienceLookback(Number(e.target.value))} className="command-input h-11 rounded-xl px-3">
                     <option value={7}>Past week</option><option value={30}>Past month</option><option value={90}>Past 3 months</option><option value={365}>Past year</option>
                   </select>
-                  <Button onClick={addExperienceTracker} disabled={addingExperience || !robloxKeyConfigured} className="h-11 rounded-xl">
+                  <Button onClick={addExperienceTracker} disabled={addingExperience} className="h-11 rounded-xl">
                     {addingExperience ? <LoaderCircle className="animate-spin" /> : <Plus />} {addingExperience ? "Adding…" : "Track"}
                   </Button>
                 </div>
-                {!robloxKeyConfigured && <p className="w-full text-xs text-amber-400">Connect the Roblox Open Cloud key in the Roblox tab first.</p>}
+                <p className="w-full text-xs text-muted-foreground">Public game passes work for any experience. Developer products appear only when Roblox grants the saved key access to that experience.</p>
               </Card>
               {!filteredExperiences.length ? <Empty icon={<Gamepad2 />} title={query ? "No matching experiences" : "No experiences tracked yet"} copy={query ? "Try a different search." : "Add a game above to list and monitor its monetization products."} /> :
                 <div className="space-y-4">{filteredExperiences.map((experience) => {
@@ -762,7 +762,7 @@ function Index() {
                       </div>
                       <div className="content-panel space-y-2">
                         <p className="panel-label">DEVELOPER PRODUCTS ({products.length})</p>
-                        {!products.length ? <p className="text-sm text-muted-foreground">No developer products found in this timeframe.</p> : products.map((item) => <a key={item.key} className="flex items-center justify-between gap-2 text-sm hover:text-primary" href={item.url} target="_blank" rel="noreferrer"><span className="truncate">{item.name}</span><ExternalLink size={14} /></a>)}
+                        {!products.length ? <p className="text-sm text-muted-foreground">No public developer-product list is available for third-party games.</p> : products.map((item) => <a key={item.key} className="flex items-center justify-between gap-2 text-sm hover:text-primary" href={item.url} target="_blank" rel="noreferrer"><span className="truncate">{item.name}</span><ExternalLink size={14} /></a>)}
                       </div>
                     </div>
                     {experience.last_error && <p className="error-copy"><AlertTriangle /> {experience.last_error}</p>}
