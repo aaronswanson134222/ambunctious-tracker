@@ -527,7 +527,7 @@ function Index() {
         <div className="top-countdown-inner">
           <div>
             <p><span /> NEXT NETWORK SCAN</p>
-            <small>SECURE FIVE-MINUTE CYCLE</small>
+            <small>SECURE ONE-MINUTE CYCLE</small>
           </div>
           <strong aria-live="off">{formatScanCountdown(scanSeconds)}</strong>
           <i aria-hidden="true"><b style={{ width: `${(scanSeconds / SCAN_INTERVAL_SECONDS) * 100}%` }} /></i>
@@ -543,7 +543,7 @@ function Index() {
             <h2>CONTROL<br /><span>THE SIGNAL.</span></h2>
             <p>Precision monitoring for X activity and market movement. One-minute scans. Instant Discord transmission.</p>
             <div className="hero-status">
-              <div><span>SCAN FREQUENCY</span><strong>05 MIN</strong></div>
+              <div><span>SCAN FREQUENCY</span><strong>60 SEC</strong></div>
               <div><span>DATA NODES</span><strong>{all.length.toString().padStart(2, "0")}</strong></div>
               <div><span>ANOMALIES</span><strong>{issues.toString().padStart(2, "0")}</strong></div>
             </div>
@@ -764,7 +764,7 @@ function Index() {
                     </div>
                     {experience.last_error && <p className="error-copy"><AlertTriangle /> {experience.last_error}</p>}
                     <div className="card-footer">
-                      <span>Every 5 minutes · Complete pass inventory · Discord alerts for new uploads</span>
+                      <span>Every 60 seconds · Complete pass inventory · Discord alerts for new uploads</span>
                       <div className="flex gap-2">
                         <Button variant="outline" size="sm" onClick={() => void runNow()} disabled={running}><RefreshCw /> Refresh</Button>
                         <Button variant="ghost" size="sm" onClick={() => void remove("experience", experience.id, experience.label)}><Trash2 /> Remove</Button>
