@@ -25,13 +25,14 @@ type ProductRow = {
 };
 
 const API_RELEASE = {
-  version: "2026.07.21-ab-command-1",
-  title: "AB Command update",
+  version: "2026.07.21-security-owner-lock-1",
+  title: "Security and owner-access update",
   changes: [
-    "New metallic AB command-centre interface",
-    "AB logo and widescreen identity added across the dashboard",
-    "Automatic API update logs now post to Discord",
-    "Five-minute monitoring, Discord retries and GBP prices remain active",
+    "Dashboard data is now restricted to the verified owner",
+    "Public scan execution has been disabled",
+    "Scheduled scans use a private rotating database secret",
+    "Concurrent scans, unsafe URLs and Discord mention abuse are blocked",
+    "Security headers and passwordless owner login have been added",
   ],
 };
 
@@ -224,16 +225,90 @@ async function runChecks() {
   return results;
 }
 
+type AdminClient = SupabaseClient<Database>;
+
+async function booleanRpc(
+  client: AdminClient,
+  functionName: string,
+  args: Record<string, unknown>,
+) {
+  const { data, error } = await (
+    client.rpc as unknown as (
+      name: string,
+      parameters: Record<string, unknown>,
+    ) => Promise<{ data: unknown; error: { message: string } | null }>
+  )(functionName, args);
+  if (error) throw new Error(`Authorization check failed: ${error.message}`);
+  return data === true;
+}
+
+async function authorizeRequest(request: Request, client: AdminClient) {
+  const header = request.headers.get("authorization");
+  if (!header?.startsWith("Bearer ")) return null;
+  const token = header.slice(7).trim();
+  if (!token || token.length > 4096) return null;
+
+  if (
+    /^[a-f0-9]{64}$/i.test(token) &&
+    await booleanRpc(client, "verify_tracker_cron_secret", { candidate: token })
+  ) {
+    return { kind: "cron" as const };
+  }
+
+  const { data, error } = await client.auth.getUser(token);
+  const email = data.user?.email;
+  if (error || !email) return null;
+  const isOwner = await booleanRpc(client, "verify_tracker_owner_email", {
+    candidate: email,
+  });
+  return isOwner ? { kind: "owner" as const } : null;
+}
+
+function json(body: unknown, status = 200) {
+  return Response.json(body, {
+    status,
+    headers: {
+      "Cache-Control": "no-store, max-age=0",
+      "X-Content-Type-Options": "nosniff",
+    },
+  });
+}
+
 export const Route = createFileRoute("/api/public/run-checks")({
   server: {
     handlers: {
-      GET: async () => {
-        const r = await runChecks();
-        return Response.json(r);
-      },
-      POST: async () => {
-        const r = await runChecks();
-        return Response.json(r);
+      GET: async () => json(
+        { error: "Method not allowed" },
+        405,
+      ),
+      POST: async ({ request }) => {
+        const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+        const caller = await authorizeRequest(request, supabaseAdmin);
+        if (!caller) return json({ error: "Unauthorized" }, 401);
+
+        const acquired = await booleanRpc(
+          supabaseAdmin,
+          "acquire_tracker_run_lock",
+          {},
+        );
+        if (!acquired) {
+          return json({ error: "A tracker scan is already running or ran moments ago." }, 409);
+        }
+
+        try {
+          const result = await runChecks();
+          if (caller.kind === "cron") {
+            const { errors: _errors, ...safeResult } = result;
+            return json({ ...safeResult, error_count: result.errors.length });
+          }
+          return json(result);
+        } finally {
+          try {
+            await booleanRpc(supabaseAdmin, "release_tracker_run_lock", {});
+          } catch (error) {
+            console.error("Could not release tracker run lock", error);
+          }
+        }
       },
     },
   },
