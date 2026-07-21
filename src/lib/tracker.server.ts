@@ -49,6 +49,9 @@ export type XCheckResult = {
 
 export async function checkXProfile(handle: string): Promise<XCheckResult> {
   const clean = handle.replace(/^@/, "").trim();
+  if (!/^[A-Za-z0-9_]{1,15}$/.test(clean)) {
+    throw new Error("Invalid X username");
+  }
   const url = `https://x.com/${encodeURIComponent(clean)}`;
   const result = await firecrawlScrape(url, [
     {
@@ -117,8 +120,29 @@ export async function convertToGBP(
   }
 }
 
+function assertAllowedProductUrl(value: string): URL {
+  let parsed: URL;
+  try {
+    parsed = new URL(value);
+  } catch {
+    throw new Error("Invalid product URL");
+  }
+  const hostname = parsed.hostname.toLowerCase();
+  if (
+    parsed.protocol !== "https:" ||
+    !(hostname === "eldorado.gg" || hostname.endsWith(".eldorado.gg")) ||
+    parsed.username ||
+    parsed.password
+  ) {
+    throw new Error("Only secure Eldorado.gg listing URLs are allowed");
+  }
+  parsed.hash = "";
+  return parsed;
+}
+
 export async function checkProductPrice(url: string): Promise<PriceCheckResult> {
-  const result = await firecrawlScrape(url, [
+  const safeUrl = assertAllowedProductUrl(url);
+  const result = await firecrawlScrape(safeUrl.toString(), [
     {
       type: "json",
       prompt:
@@ -161,8 +185,7 @@ export async function sendDiscord(payload: {
 }): Promise<void> {
   const webhook =
     process.env.DISCORD_WEBHOOK_URL ??
-    process.env.DISCORD_WEBHOOK ??
-    process.env.VITE_DISCORD_WEBHOOK_URL;
+    process.env.DISCORD_WEBHOOK;
   if (!webhook) {
     throw new Error(
       "Discord webhook is not configured. Add DISCORD_WEBHOOK_URL in project secrets.",
