@@ -38,7 +38,7 @@ export const Route = createFileRoute("/api/roblox/key")({
         const client = await ownerClient(request);
         if (!client) return json({ error: "Unauthorized" }, 401);
         const declaredLength = Number(request.headers.get("content-length"));
-        if (Number.isFinite(declaredLength) && declaredLength > 1_024) {
+        if (Number.isFinite(declaredLength) && declaredLength > 12_288) {
           return json({ error: "Invalid request" }, 400);
         }
         let key = "";
