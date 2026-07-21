@@ -53,9 +53,28 @@ function withSecurityHeaders(response: Response, request: Request): Response {
   headers.set("Cross-Origin-Resource-Policy", "same-origin");
   headers.set(
     "Content-Security-Policy",
-    "base-uri 'self'; object-src 'none'; form-action 'self'; frame-ancestors 'self' https://lovable.dev https://*.lovable.dev",
+    [
+      "default-src 'self'",
+      "base-uri 'self'",
+      "object-src 'none'",
+      "form-action 'self'",
+      "frame-ancestors 'self' https://lovable.dev https://*.lovable.dev",
+      "script-src 'self' 'unsafe-inline'",
+      "style-src 'self' 'unsafe-inline'",
+      "img-src 'self' data: blob: https:",
+      "font-src 'self' data:",
+      "connect-src 'self' https://*.supabase.co wss://*.supabase.co",
+      "frame-src 'none'",
+      "worker-src 'self' blob:",
+      "manifest-src 'self'",
+      "upgrade-insecure-requests",
+    ].join("; "),
   );
-  if (new URL(request.url).protocol === "https:") {
+  const requestUrl = new URL(request.url);
+  if (requestUrl.pathname.startsWith("/api/")) {
+    headers.set("Cache-Control", "no-store, max-age=0");
+  }
+  if (requestUrl.protocol === "https:") {
     headers.set("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
   }
   return new Response(response.body, {
