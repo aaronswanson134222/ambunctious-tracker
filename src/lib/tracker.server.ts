@@ -79,6 +79,44 @@ export type PriceCheckResult = {
   currency: string | null;
 };
 
+const currencyAliases: Record<string, string> = {
+  "$": "USD",
+  "US$": "USD",
+  "€": "EUR",
+  "£": "GBP",
+};
+
+export function normalizeCurrency(currency: string | null): string | null {
+  if (!currency) return null;
+  const clean = currency.trim().toUpperCase();
+  return currencyAliases[clean] ?? (/^[A-Z]{3}$/.test(clean) ? clean : null);
+}
+
+export async function convertToGBP(
+  amount: number,
+  currency: string | null,
+): Promise<number | null> {
+  const from = normalizeCurrency(currency);
+  if (!from) return null;
+  if (from === "GBP") return amount;
+
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 8_000);
+    const res = await fetch(
+      `https://api.frankfurter.app/latest?amount=${encodeURIComponent(String(amount))}&from=${encodeURIComponent(from)}&to=GBP`,
+      { signal: controller.signal },
+    );
+    clearTimeout(timeout);
+    if (!res.ok) return null;
+    const body = (await res.json()) as { rates?: { GBP?: number } };
+    const pounds = body.rates?.GBP;
+    return typeof pounds === "number" && isFinite(pounds) ? pounds : null;
+  } catch {
+    return null;
+  }
+}
+
 export async function checkProductPrice(url: string): Promise<PriceCheckResult> {
   const result = await firecrawlScrape(url, [
     {
@@ -95,7 +133,8 @@ export async function checkProductPrice(url: string): Promise<PriceCheckResult> 
     const n = parseFloat(j.price.replace(/[^0-9.]/g, ""));
     if (isFinite(n)) price = n;
   }
-  const currency = typeof j.currency === "string" ? j.currency : null;
+  const currency =
+    typeof j.currency === "string" ? normalizeCurrency(j.currency) : null;
 
   // Fallback: regex in markdown
   if (price == null && result.markdown) {
@@ -120,15 +159,65 @@ export async function sendDiscord(payload: {
   content?: string;
   embeds?: Array<Record<string, unknown>>;
 }): Promise<void> {
-  const webhook = process.env.DISCORD_WEBHOOK_URL;
-  if (!webhook) throw new Error("DISCORD_WEBHOOK_URL not set");
-  const res = await fetch(webhook, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
+  const webhook =
+    process.env.DISCORD_WEBHOOK_URL ??
+    process.env.DISCORD_WEBHOOK ??
+    process.env.VITE_DISCORD_WEBHOOK_URL;
+  if (!webhook) {
+    throw new Error(
+      "Discord webhook is not configured. Add DISCORD_WEBHOOK_URL in project secrets.",
+    );
+  }
+
+  let webhookUrl: URL;
+  try {
+    webhookUrl = new URL(webhook);
+  } catch {
+    throw new Error("DISCORD_WEBHOOK_URL is not a valid URL");
+  }
+  if (
+    !["discord.com", "discordapp.com"].some(
+      (host) => webhookUrl.hostname === host || webhookUrl.hostname.endsWith(`.${host}`),
+    ) ||
+    !webhookUrl.pathname.includes("/api/webhooks/")
+  ) {
+    throw new Error("DISCORD_WEBHOOK_URL is not a Discord webhook URL");
+  }
+  webhookUrl.searchParams.set("wait", "true");
+
+  const body = JSON.stringify({
+    ...payload,
+    allowed_mentions: { parse: [] },
   });
-  if (!res.ok) {
-    const t = await res.text();
-    throw new Error(`Discord webhook ${res.status}: ${t.slice(0, 200)}`);
+
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    const res = await fetch(webhookUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "User-Agent": "Ambunctious-Tracker/1.0",
+      },
+      body,
+    });
+    if (res.ok) return;
+
+    const responseText = await res.text();
+    if (attempt === 3 || (res.status < 500 && res.status !== 429)) {
+      throw new Error(
+        `Discord webhook ${res.status}: ${responseText.slice(0, 240)}`,
+      );
+    }
+    let delay = 500 * attempt;
+    if (res.status === 429) {
+      try {
+        const rateLimit = JSON.parse(responseText) as { retry_after?: number };
+        if (typeof rateLimit.retry_after === "number") {
+          delay = Math.max(250, rateLimit.retry_after * 1_000);
+        }
+      } catch {
+        // Fall back to a short retry delay.
+      }
+    }
+    await new Promise((resolve) => setTimeout(resolve, delay));
   }
 }

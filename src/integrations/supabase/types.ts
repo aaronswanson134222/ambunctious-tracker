@@ -20,6 +20,7 @@ export type Database = {
           currency: string | null
           id: number
           price: number
+          price_gbp: number | null
           product_id: string
         }
         Insert: {
@@ -27,6 +28,7 @@ export type Database = {
           currency?: string | null
           id?: number
           price: number
+          price_gbp?: number | null
           product_id: string
         }
         Update: {
@@ -34,6 +36,7 @@ export type Database = {
           currency?: string | null
           id?: number
           price?: number
+          price_gbp?: number | null
           product_id?: string
         }
         Relationships: [
@@ -55,6 +58,7 @@ export type Database = {
           last_checked_at: string | null
           last_error: string | null
           last_price: number | null
+          last_price_gbp: number | null
           updated_at: string
           url: string
         }
@@ -66,6 +70,7 @@ export type Database = {
           last_checked_at?: string | null
           last_error?: string | null
           last_price?: number | null
+          last_price_gbp?: number | null
           updated_at?: string
           url: string
         }
@@ -77,6 +82,7 @@ export type Database = {
           last_checked_at?: string | null
           last_error?: string | null
           last_price?: number | null
+          last_price_gbp?: number | null
           updated_at?: string
           url?: string
         }
