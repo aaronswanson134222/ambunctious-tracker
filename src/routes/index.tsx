@@ -39,6 +39,15 @@ type RobloxTracker = {
   scan_types: string[]; lookback_days: number;
   last_checked_at: string | null; last_error: string | null;
 };
+type ExperienceProductItem = {
+  key: string; id: number; kind: "game_pass" | "developer_product";
+  name: string; url: string; createdAt: string | null;
+};
+type ExperienceTracker = {
+  id: string; place_id: number; universe_id: number; label: string;
+  lookback_days: number; items: ExperienceProductItem[];
+  last_checked_at: string | null; last_error: string | null;
+};
 type PricePoint = { checked_at: string; price: number; price_gbp: number | null };
 type ForcedRobloxItem = {
   name: string;
@@ -86,6 +95,7 @@ function Index() {
   const [accounts, setAccounts] = useState<XAccount[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [robloxTrackers, setRobloxTrackers] = useState<RobloxTracker[]>([]);
+  const [experienceTrackers, setExperienceTrackers] = useState<ExperienceTracker[]>([]);
   const [handle, setHandle] = useState("");
   const [productUrl, setProductUrl] = useState("");
   const [productLabel, setProductLabel] = useState("");
@@ -95,6 +105,10 @@ function Index() {
   const [robloxScanTypes, setRobloxScanTypes] = useState<string[]>(["catalog", "experience"]);
   const [robloxLookback, setRobloxLookback] = useState(30);
   const [robloxApiKey, setRobloxApiKey] = useState("");
+  const [experienceTarget, setExperienceTarget] = useState("");
+  const [experienceLabel, setExperienceLabel] = useState("");
+  const [experienceLookback, setExperienceLookback] = useState(30);
+  const [addingExperience, setAddingExperience] = useState(false);
   const [robloxKeyConfigured, setRobloxKeyConfigured] = useState(false);
   const [savingRobloxKey, setSavingRobloxKey] = useState(false);
   const [forcingRoblox, setForcingRoblox] = useState<string | null>(null);
@@ -115,15 +129,18 @@ function Index() {
       { data: xs, error: xError },
       { data: ps, error: pError },
       { data: rs, error: rError },
+      { data: es, error: eError },
     ] = await Promise.all([
       supabase.from("tracked_x_accounts").select("*").order("created_at", { ascending: true }),
       supabase.from("tracked_products").select("*").order("created_at", { ascending: true }),
       supabase.from("tracked_roblox_entities").select("*").order("created_at", { ascending: true }),
+      supabase.from("tracked_roblox_experiences").select("*").order("created_at", { ascending: true }),
     ]);
-    if (xError || pError || rError) toast.error("Couldn’t load every tracker. Please try again.");
+    if (xError || pError || rError || eError) toast.error("Couldn’t load every tracker. Please try again.");
     setAccounts((xs ?? []) as XAccount[]);
     setProducts((ps ?? []) as Product[]);
     setRobloxTrackers((rs ?? []) as RobloxTracker[]);
+    setExperienceTrackers((es ?? []) as ExperienceTracker[]);
     if (ps?.length) {
       const entries = await Promise.all(ps.map(async (p) => {
         const { data } = await supabase.from("price_history").select("checked_at, price, price_gbp")
@@ -204,6 +221,7 @@ function Index() {
       setAccounts([]);
       setProducts([]);
       setRobloxTrackers([]);
+      setExperienceTrackers([]);
       setHistory({});
       setLoading(false);
     }
@@ -367,9 +385,48 @@ function Index() {
     }
   }
 
-  async function remove(kind: "account" | "product" | "roblox", id: string, label: string) {
+  async function addExperienceTracker() {
+    const value = experienceTarget.trim();
+    const idMatch = value.match(/(?:games\/)(\d+)/i) ?? value.match(/^(\d+)$/);
+    const placeId = Number(idMatch?.[1]);
+    const label = experienceLabel.trim();
+    if (!Number.isSafeInteger(placeId) || placeId <= 0) {
+      return toast.error("Enter a Roblox game URL or numeric place ID.");
+    }
+    if (!label || label.length > 120) return toast.error("Enter a short experience label.");
+    const { data } = await supabase.auth.getSession();
+    const token = data.session?.access_token;
+    if (!token) return toast.error("Your secure session expired. Sign in again.");
+    setAddingExperience(true);
+    try {
+      const response = await fetch("/api/roblox/experiences", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          placeId,
+          label,
+          lookbackDays: experienceLookback,
+        }),
+      });
+      const body = await response.json() as { baseline_count?: number; error?: string };
+      if (!response.ok) throw new Error(body.error ?? "Could not add experience.");
+      toast.success(`${label} added with ${body.baseline_count ?? 0} existing products.`);
+      setExperienceTarget("");
+      setExperienceLabel("");
+      await loadAll();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not add experience.");
+    } finally {
+      setAddingExperience(false);
+    }
+  }
+
+  async function remove(kind: "account" | "product" | "roblox" | "experience", id: string, label: string) {
     if (!window.confirm(`Stop tracking ${label}? This cannot be undone.`)) return;
-    const table = kind === "account" ? "tracked_x_accounts" : kind === "product" ? "tracked_products" : "tracked_roblox_entities";
+    const table = kind === "account" ? "tracked_x_accounts" : kind === "product" ? "tracked_products" : kind === "roblox" ? "tracked_roblox_entities" : "tracked_roblox_experiences";
     const { error } = await supabase.from(table).delete().eq("id", id);
     if (error) toast.error(error.message);
     else { toast.success(`${label} removed`); await loadAll(); }
@@ -396,8 +453,9 @@ function Index() {
 
   const filteredAccounts = useMemo(() => accounts.filter((a) => a.handle.toLowerCase().includes(query.toLowerCase())), [accounts, query]);
   const filteredProducts = useMemo(() => products.filter((p) => (p.label + p.url).toLowerCase().includes(query.toLowerCase())), [products, query]);
+  const filteredExperiences = useMemo(() => experienceTrackers.filter((r) => (r.label + r.place_id + r.universe_id).toLowerCase().includes(query.toLowerCase())), [experienceTrackers, query]);
   const filteredRoblox = useMemo(() => robloxTrackers.filter((r) => (r.label + r.entity_type + r.entity_id).toLowerCase().includes(query.toLowerCase())), [robloxTrackers, query]);
-  const all = [...accounts, ...products, ...robloxTrackers];
+  const all = [...accounts, ...products, ...robloxTrackers, ...experienceTrackers];
   const issues = all.filter((item) => item.last_error).length;
   const checked = all.map((item) => item.last_checked_at).filter(Boolean).sort().at(-1) ?? null;
 
@@ -517,6 +575,7 @@ function Index() {
               <TabsTrigger value="x" className="h-10 flex-1 rounded-none px-4 sm:flex-none"><Twitter /> X SIGNALS <span className="count">{accounts.length}</span></TabsTrigger>
               <TabsTrigger value="products" className="h-10 flex-1 rounded-none px-4 sm:flex-none"><ShoppingBag /> PRICES <span className="count">{products.length}</span></TabsTrigger>
               <TabsTrigger value="roblox" className="h-10 flex-1 rounded-none px-4 sm:flex-none"><Gamepad2 /> ROBLOX <span className="count">{robloxTrackers.length}</span></TabsTrigger>
+              <TabsTrigger value="experiences" className="h-10 flex-1 rounded-none px-4 sm:flex-none"><Gamepad2 /> EXPERIENCES <span className="count">{experienceTrackers.length}</span></TabsTrigger>
             </TabsList>
 
             <TabsContent value="x" className="space-y-4">
@@ -667,6 +726,53 @@ function Index() {
                     </div>
                     {r.last_error && <p className="error-copy"><AlertTriangle /> {r.last_error}</p>}
                     <div className="card-footer"><span>Discord alerts enabled</span><Button variant="ghost" size="sm" onClick={() => void remove("roblox", r.id, r.label)}><Trash2 /> Remove</Button></div>
+                  </Card>;
+                })}</div>}
+            </TabsContent>
+
+            <TabsContent value="experiences" className="space-y-4">
+              <Card className="add-card items-start">
+                <div className="add-copy"><div className="add-icon"><Gamepad2 /></div><div><h3>Track an experience</h3><p>Paste a game URL or place ID to watch all game passes and developer products.</p></div></div>
+                <div className="grid w-full gap-2 sm:max-w-3xl sm:grid-cols-[1fr_1fr_150px_auto]">
+                  <Input aria-label="Roblox game URL or place ID" placeholder="Game URL or place ID" value={experienceTarget} onChange={(e) => setExperienceTarget(e.target.value)} className="h-11 rounded-xl" />
+                  <Input aria-label="Experience label" placeholder="Experience label" value={experienceLabel} onChange={(e) => setExperienceLabel(e.target.value)} onKeyDown={(e) => e.key === "Enter" && void addExperienceTracker()} className="h-11 rounded-xl" />
+                  <select aria-label="Experience product timeframe" value={experienceLookback} onChange={(e) => setExperienceLookback(Number(e.target.value))} className="command-input h-11 rounded-xl px-3">
+                    <option value={7}>Past week</option><option value={30}>Past month</option><option value={90}>Past 3 months</option><option value={365}>Past year</option>
+                  </select>
+                  <Button onClick={addExperienceTracker} disabled={addingExperience || !robloxKeyConfigured} className="h-11 rounded-xl">
+                    {addingExperience ? <LoaderCircle className="animate-spin" /> : <Plus />} {addingExperience ? "Adding…" : "Track"}
+                  </Button>
+                </div>
+                {!robloxKeyConfigured && <p className="w-full text-xs text-amber-400">Connect the Roblox Open Cloud key in the Roblox tab first.</p>}
+              </Card>
+              {!filteredExperiences.length ? <Empty icon={<Gamepad2 />} title={query ? "No matching experiences" : "No experiences tracked yet"} copy={query ? "Try a different search." : "Add a game above to list and monitor its monetization products."} /> :
+                <div className="space-y-4">{filteredExperiences.map((experience) => {
+                  const items = Array.isArray(experience.items) ? experience.items : [];
+                  const passes = items.filter((item) => item.kind === "game_pass");
+                  const products = items.filter((item) => item.kind === "developer_product");
+                  return <Card key={experience.id} className="tracker-card">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex min-w-0 items-center gap-3"><div className="tracker-avatar"><Gamepad2 /></div><div className="min-w-0"><a className="tracker-title" href={`https://www.roblox.com/games/${experience.place_id}`} target="_blank" rel="noreferrer">{experience.label} <ExternalLink /></a><p className="tracker-meta">PLACE #{experience.place_id} · UNIVERSE #{experience.universe_id} · Checked {relativeTime(experience.last_checked_at)}</p></div></div>
+                      <StatusPill error={experience.last_error} checked={experience.last_checked_at} />
+                    </div>
+                    <div className="mt-4 grid gap-3 md:grid-cols-2">
+                      <div className="content-panel space-y-2">
+                        <p className="panel-label">GAME PASSES ({passes.length})</p>
+                        {!passes.length ? <p className="text-sm text-muted-foreground">No game passes found in this timeframe.</p> : passes.map((item) => <a key={item.key} className="flex items-center justify-between gap-2 text-sm hover:text-primary" href={item.url} target="_blank" rel="noreferrer"><span className="truncate">{item.name}</span><ExternalLink size={14} /></a>)}
+                      </div>
+                      <div className="content-panel space-y-2">
+                        <p className="panel-label">DEVELOPER PRODUCTS ({products.length})</p>
+                        {!products.length ? <p className="text-sm text-muted-foreground">No developer products found in this timeframe.</p> : products.map((item) => <a key={item.key} className="flex items-center justify-between gap-2 text-sm hover:text-primary" href={item.url} target="_blank" rel="noreferrer"><span className="truncate">{item.name}</span><ExternalLink size={14} /></a>)}
+                      </div>
+                    </div>
+                    {experience.last_error && <p className="error-copy"><AlertTriangle /> {experience.last_error}</p>}
+                    <div className="card-footer">
+                      <span>Every 5 minutes · {experience.lookback_days}-day window · Discord alerts for new uploads</span>
+                      <div className="flex gap-2">
+                        <Button variant="outline" size="sm" onClick={() => void runNow()} disabled={running}><RefreshCw /> Refresh</Button>
+                        <Button variant="ghost" size="sm" onClick={() => void remove("experience", experience.id, experience.label)}><Trash2 /> Remove</Button>
+                      </div>
+                    </div>
                   </Card>;
                 })}</div>}
             </TabsContent>
