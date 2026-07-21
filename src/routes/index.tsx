@@ -40,6 +40,12 @@ type RobloxTracker = {
   last_checked_at: string | null; last_error: string | null;
 };
 type PricePoint = { checked_at: string; price: number; price_gbp: number | null };
+type ForcedRobloxItem = {
+  name: string;
+  url: string;
+  kind: "game_pass" | "developer_product";
+  createdAt: string | null;
+};
 
 function relativeTime(iso: string | null) {
   if (!iso) return "Not checked yet";
@@ -91,6 +97,8 @@ function Index() {
   const [robloxApiKey, setRobloxApiKey] = useState("");
   const [robloxKeyConfigured, setRobloxKeyConfigured] = useState(false);
   const [savingRobloxKey, setSavingRobloxKey] = useState(false);
+  const [forcingRoblox, setForcingRoblox] = useState<string | null>(null);
+  const [forcedRobloxItems, setForcedRobloxItems] = useState<Record<string, ForcedRobloxItem>>({});
   const [running, setRunning] = useState(false);
   const [scanSeconds, setScanSeconds] = useState(SCAN_INTERVAL_SECONDS);
   const [loading, setLoading] = useState(true);
@@ -316,6 +324,46 @@ function Index() {
     else {
       toast.success("Roblox scan settings updated.");
       await loadAll();
+    }
+  }
+
+  async function forceRobloxProductCheck(
+    tracker: RobloxTracker,
+    kind: "game_pass" | "developer_product",
+  ) {
+    const requestKey = `${tracker.id}:${kind}`;
+    setForcingRoblox(requestKey);
+    try {
+      const { data } = await supabase.auth.getSession();
+      const token = data.session?.access_token;
+      if (!token) throw new Error("Your secure session expired. Sign in again.");
+      const response = await fetch("/api/roblox/force-check", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ trackerId: tracker.id, kind }),
+      });
+      const body = await response.json() as {
+        found?: boolean;
+        item?: ForcedRobloxItem;
+        discord_sent?: boolean;
+        message?: string;
+        error?: string;
+      };
+      if (!response.ok) throw new Error(body.error ?? "The targeted Roblox check failed.");
+      if (body.found && body.item) {
+        setForcedRobloxItems((current) => ({ ...current, [tracker.id]: body.item! }));
+        toast.success(`${body.item.name} found and sent to Discord.`);
+      } else {
+        toast.info(body.message ?? "No matching Roblox product was found.");
+      }
+      await loadAll();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "The targeted Roblox check failed.");
+    } finally {
+      setForcingRoblox(null);
     }
   }
 
@@ -580,6 +628,42 @@ function Index() {
                         </select>
                       </label>
                       <p className="text-xs text-muted-foreground">Newly enabled types create a silent baseline before alerts begin.</p>
+                      {r.entity_type === "group" && (
+                        <div className="space-y-2 border-t border-white/10 pt-3">
+                          <p className="panel-label">FORCE ONE PRODUCT CHECK</p>
+                          <div className="flex flex-wrap gap-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              disabled={forcingRoblox !== null || !robloxKeyConfigured}
+                              onClick={() => void forceRobloxProductCheck(r, "game_pass")}
+                            >
+                              {forcingRoblox === `${r.id}:game_pass` ? <LoaderCircle className="animate-spin" /> : <RefreshCw />}
+                              Check latest game pass
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              disabled={forcingRoblox !== null || !robloxKeyConfigured}
+                              onClick={() => void forceRobloxProductCheck(r, "developer_product")}
+                            >
+                              {forcingRoblox === `${r.id}:developer_product` ? <LoaderCircle className="animate-spin" /> : <RefreshCw />}
+                              Check latest developer product
+                            </Button>
+                          </div>
+                          {!robloxKeyConfigured && <p className="text-xs text-amber-400">Connect the Roblox Open Cloud key to enable manual checks.</p>}
+                          {forcedRobloxItems[r.id] && (
+                            <a
+                              className="flex items-center gap-1 text-sm text-primary hover:underline"
+                              href={forcedRobloxItems[r.id].url}
+                              target="_blank"
+                              rel="noreferrer"
+                            >
+                              Latest result: {forcedRobloxItems[r.id].name} <ExternalLink size={14} />
+                            </a>
+                          )}
+                        </div>
+                      )}
                     </div>
                     {r.last_error && <p className="error-copy"><AlertTriangle /> {r.last_error}</p>}
                     <div className="card-footer"><span>Discord alerts enabled</span><Button variant="ghost" size="sm" onClick={() => void remove("roblox", r.id, r.label)}><Trash2 /> Remove</Button></div>

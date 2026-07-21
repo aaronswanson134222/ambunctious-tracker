@@ -13,6 +13,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as ApiPublicRunChecksRouteImport } from './routes/api/public/run-checks'
 import { Route as ApiAuthPinRouteImport } from './routes/api/auth/pin'
 import { Route as ApiRobloxKeyRouteImport } from './routes/api/roblox/key'
+import { Route as ApiRobloxForceCheckRouteImport } from './routes/api/roblox/force-check'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -29,6 +30,11 @@ const ApiRobloxKeyRoute = ApiRobloxKeyRouteImport.update({
   path: '/api/roblox/key',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiRobloxForceCheckRoute = ApiRobloxForceCheckRouteImport.update({
+  id: '/api/roblox/force-check',
+  path: '/api/roblox/force-check',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicRunChecksRoute = ApiPublicRunChecksRouteImport.update({
   id: '/api/public/run-checks',
   path: '/api/public/run-checks',
@@ -39,33 +45,37 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/api/auth/pin': typeof ApiAuthPinRoute
   '/api/roblox/key': typeof ApiRobloxKeyRoute
-  '/api/roblox/key': typeof ApiRobloxKeyRoute
+  '/api/roblox/force-check': typeof ApiRobloxForceCheckRoute
   '/api/public/run-checks': typeof ApiPublicRunChecksRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/api/auth/pin': typeof ApiAuthPinRoute
   '/api/roblox/key': typeof ApiRobloxKeyRoute
+  '/api/roblox/force-check': typeof ApiRobloxForceCheckRoute
   '/api/public/run-checks': typeof ApiPublicRunChecksRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/api/auth/pin': typeof ApiAuthPinRoute
+  '/api/roblox/key': typeof ApiRobloxKeyRoute
+  '/api/roblox/force-check': typeof ApiRobloxForceCheckRoute
   '/api/public/run-checks': typeof ApiPublicRunChecksRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/api/auth/pin' | '/api/roblox/key' | '/api/public/run-checks'
+  fullPaths: '/' | '/api/auth/pin' | '/api/roblox/key' | '/api/roblox/force-check' | '/api/public/run-checks'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/api/auth/pin' | '/api/roblox/key' | '/api/public/run-checks'
-  id: '__root__' | '/' | '/api/auth/pin' | '/api/roblox/key' | '/api/public/run-checks'
+  to: '/' | '/api/auth/pin' | '/api/roblox/key' | '/api/roblox/force-check' | '/api/public/run-checks'
+  id: '__root__' | '/' | '/api/auth/pin' | '/api/roblox/key' | '/api/roblox/force-check' | '/api/public/run-checks'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ApiAuthPinRoute: typeof ApiAuthPinRoute
   ApiRobloxKeyRoute: typeof ApiRobloxKeyRoute
+  ApiRobloxForceCheckRoute: typeof ApiRobloxForceCheckRoute
   ApiPublicRunChecksRoute: typeof ApiPublicRunChecksRoute
 }
 
@@ -92,6 +102,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiRobloxKeyRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/roblox/force-check': {
+      id: '/api/roblox/force-check'
+      path: '/api/roblox/force-check'
+      fullPath: '/api/roblox/force-check'
+      preLoaderRoute: typeof ApiRobloxForceCheckRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/run-checks': {
       id: '/api/public/run-checks'
       path: '/api/public/run-checks'
@@ -106,6 +123,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ApiAuthPinRoute: ApiAuthPinRoute,
   ApiRobloxKeyRoute: ApiRobloxKeyRoute,
+  ApiRobloxForceCheckRoute: ApiRobloxForceCheckRoute,
   ApiPublicRunChecksRoute: ApiPublicRunChecksRoute,
 }
 export const routeTree = rootRouteImport
