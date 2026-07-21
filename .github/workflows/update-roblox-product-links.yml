@@ -1,0 +1,36 @@
+name: Update Roblox product links
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/update-roblox-product-links.yml
+
+permissions:
+  contents: write
+
+jobs:
+  update-links:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Point developer products to the Roblox store tab
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('src/lib/tracker.server.ts')
+          text = path.read_text()
+          old = 'url: `https://www.roblox.com/games/${placeId}`,'
+          new = 'url: `https://www.roblox.com/games/${placeId}#!/store`,'
+          if old not in text:
+              raise SystemExit('Expected developer-product game URL was not found')
+          path.write_text(text.replace(old, new, 1))
+          PY
+      - name: Commit change
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/lib/tracker.server.ts
+          git diff --cached --quiet || git commit -m "Open developer products in Roblox store tab"
+          git push
