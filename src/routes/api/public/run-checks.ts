@@ -3,6 +3,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import {
   checkProductPrice,
   checkXProfile,
+  convertToGBP,
   sendDiscord,
 } from "@/lib/tracker.server";
 
@@ -18,6 +19,7 @@ type ProductRow = {
   label: string;
   last_price: number | null;
   currency: string | null;
+  last_price_gbp: number | null;
 };
 
 async function runChecks() {
@@ -27,6 +29,7 @@ async function runChecks() {
     x_new_posts: 0,
     products_checked: 0,
     price_changes: 0,
+    discord_sent: 0,
     errors: [] as string[],
   };
 
@@ -41,18 +44,8 @@ async function runChecks() {
     try {
       const { postUrl, postText } = await checkXProfile(row.handle);
       const isNew = postUrl && postUrl !== row.last_post_url;
-      await supabaseAdmin
-        .from("tracked_x_accounts")
-        .update({
-          last_post_url: postUrl ?? row.last_post_url,
-          last_post_text: postText,
-          last_checked_at: new Date().toISOString(),
-          last_error: null,
-        })
-        .eq("id", row.id);
       if (isNew && row.last_post_url !== null) {
         // Only alert if we had a baseline (skip first-ever check)
-        results.x_new_posts++;
         await sendDiscord({
           embeds: [
             {
@@ -64,9 +57,20 @@ async function runChecks() {
             },
           ],
         });
+        results.x_new_posts++;
+        results.discord_sent++;
       } else if (isNew && row.last_post_url === null) {
         // First observation — record without alerting
       }
+      await supabaseAdmin
+        .from("tracked_x_accounts")
+        .update({
+          last_post_url: postUrl ?? row.last_post_url,
+          last_post_text: postText,
+          last_checked_at: new Date().toISOString(),
+          last_error: null,
+        })
+        .eq("id", row.id);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       results.errors.push(`x/${row.handle}: ${msg}`);
@@ -83,7 +87,7 @@ async function runChecks() {
   // --- Products ---
   const { data: prods, error: pErr } = await supabaseAdmin
     .from("tracked_products")
-    .select("id, url, label, last_price, currency");
+    .select("id, url, label, last_price, currency, last_price_gbp");
   if (pErr) results.errors.push(`products list: ${pErr.message}`);
 
   for (const row of (prods ?? []) as ProductRow[]) {
@@ -91,41 +95,50 @@ async function runChecks() {
     try {
       const { price, currency } = await checkProductPrice(row.url);
       if (price == null) throw new Error("Could not extract price");
-      await supabaseAdmin.from("price_history").insert({
-        product_id: row.id,
-        price,
-        currency,
-      });
+      const effectiveCurrency = currency ?? row.currency;
+      const priceGbp = await convertToGBP(price, effectiveCurrency);
       const prev = row.last_price;
       const changed = prev != null && Number(prev) !== price;
-      await supabaseAdmin
-        .from("tracked_products")
-        .update({
-          last_price: price,
-          currency: currency ?? row.currency,
-          last_checked_at: new Date().toISOString(),
-          last_error: null,
-        })
-        .eq("id", row.id);
       if (changed) {
-        results.price_changes++;
         const prevNum = Number(prev);
         const diff = price - prevNum;
         const pct = prevNum > 0 ? (diff / prevNum) * 100 : 0;
         const arrow = diff > 0 ? "🔺" : "🔻";
-        const cur = currency ?? row.currency ?? "";
+        const cur = effectiveCurrency ?? "";
+        const pounds =
+          priceGbp == null
+            ? ""
+            : `\nApprox. **£${priceGbp.toFixed(2)} GBP**`;
         await sendDiscord({
           embeds: [
             {
               title: `${arrow} Price change: ${row.label}`,
               url: row.url,
-              description: `**${cur} ${prevNum.toFixed(2)}** → **${cur} ${price.toFixed(2)}** (${diff > 0 ? "+" : ""}${pct.toFixed(1)}%)`,
+              description: `**${cur} ${prevNum.toFixed(2)}** → **${cur} ${price.toFixed(2)}** (${diff > 0 ? "+" : ""}${pct.toFixed(1)}%)${pounds}`,
               color: diff > 0 ? 0xef4444 : 0x22c55e,
               timestamp: new Date().toISOString(),
             },
           ],
         });
+        results.price_changes++;
+        results.discord_sent++;
       }
+      await supabaseAdmin.from("price_history").insert({
+        product_id: row.id,
+        price,
+        currency: effectiveCurrency,
+        price_gbp: priceGbp,
+      });
+      await supabaseAdmin
+        .from("tracked_products")
+        .update({
+          last_price: price,
+          last_price_gbp: priceGbp,
+          currency: effectiveCurrency,
+          last_checked_at: new Date().toISOString(),
+          last_error: null,
+        })
+        .eq("id", row.id);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       results.errors.push(`product/${row.label}: ${msg}`);
