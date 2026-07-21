@@ -548,7 +548,15 @@ async function runChecks() {
           ? row.known_item_keys.filter((value): value is string => typeof value === "string")
           : [],
       );
-      const fresh = products.filter((item) => !known.has(item.key)).slice(0, 20);
+      const hasDeveloperProductBaseline = [...known].some((key) =>
+        key.startsWith("developer_product:"),
+      );
+      const fresh = products
+        .filter((item) =>
+          !known.has(item.key) &&
+          (item.kind !== "developer_product" || hasDeveloperProductBaseline),
+        )
+        .slice(0, 20);
 
       for (const item of fresh) {
         const reservation = await reserveNotification(

@@ -740,7 +740,7 @@ function Index() {
                     {addingExperience ? <LoaderCircle className="animate-spin" /> : <Plus />} {addingExperience ? "Adding…" : "Track"}
                   </Button>
                 </div>
-                <p className="w-full text-xs text-muted-foreground">Public game passes work for any experience. Developer products appear only when Roblox grants the saved key access to that experience.</p>
+                <p className="w-full text-xs text-muted-foreground">Public game passes and developer products are listed for any public experience. Existing items create a silent baseline.</p>
               </Card>
               {!filteredExperiences.length ? <Empty icon={<Gamepad2 />} title={query ? "No matching experiences" : "No experiences tracked yet"} copy={query ? "Try a different search." : "Add a game above to list and monitor its monetization products."} /> :
                 <div className="space-y-4">{filteredExperiences.map((experience) => {
@@ -759,7 +759,7 @@ function Index() {
                       </div>
                       <div className="content-panel space-y-2">
                         <p className="panel-label">DEVELOPER PRODUCTS ({products.length})</p>
-                        {!products.length ? <p className="text-sm text-muted-foreground">No public developer-product list is available for third-party games.</p> : products.map((item) => <a key={item.key} className="flex items-center justify-between gap-2 text-sm hover:text-primary" href={item.url} target="_blank" rel="noreferrer"><span className="truncate">{item.name}</span><ExternalLink size={14} /></a>)}
+                        {!products.length ? <p className="text-sm text-muted-foreground">No developer products were returned for this experience.</p> : products.map((item) => <a key={item.key} className="flex items-center justify-between gap-2 text-sm hover:text-primary" href={item.url} target="_blank" rel="noreferrer"><span className="truncate">{item.name}</span><ExternalLink size={14} /></a>)}
                       </div>
                     </div>
                     {experience.last_error && <p className="error-copy"><AlertTriangle /> {experience.last_error}</p>}
