@@ -92,19 +92,19 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       {
         name: "description",
         content:
-          "Monitor X accounts and Eldorado listing prices from one focused dashboard, with automatic Discord alerts.",
+          "Monitor X accounts, Roblox activity and Eldorado listing prices with automatic one-minute scans and Discord alerts.",
       },
       { property: "og:title", content: "Ambunctious Tracker — X posts & price alerts" },
       {
         property: "og:description",
-        content: "Monitor X accounts and Eldorado listing prices from one focused dashboard, with automatic Discord alerts.",
+        content: "Monitor X accounts, Roblox activity and Eldorado listing prices with automatic one-minute scans and Discord alerts.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
       { name: "twitter:title", content: "Ambunctious Tracker — X posts & price alerts" },
-      { name: "twitter:description", content: "Monitor X accounts and Eldorado listing prices from one focused dashboard, with automatic Discord alerts." },
+      { name: "twitter:description", content: "Automatic one-minute monitoring with Discord alerts." },
       { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/64ef8a7e-f1f2-4853-82a0-93052d8f91f2/id-preview-df845111--4643c934-856e-487c-b22f-b0ba8a7abd8c.lovable.app-1784590112283.png" },
-      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/64ef8a7e-f1f2-4853-82a0-93052d8f91f2/id-preview-df845111--4643c934-856e-487c-b22f-b0ba8a7abd8c.lovable.app-1784590112283.png" },
+      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/64ef8a7e-f1f2-4853-82a0-93052d8f35b4.r2.dev/64ef8a7e-f1f2-4853-82a0-93052d8f91f2/id-preview-df845111--4643c934-856e-487c-b22f-b0ba8a7abd8c.lovable.app-1784590112283.png" },
     ],
     links: [
       {
@@ -133,6 +133,45 @@ function RootShell({ children }: { children: ReactNode }) {
   );
 }
 
+function OneMinuteScanUiSync() {
+  useEffect(() => {
+    const update = () => {
+      const remaining = 60 - (Math.floor(Date.now() / 1000) % 60);
+      const value = `00:${remaining.toString().padStart(2, "0")}`;
+      const progress = `${(remaining / 60) * 100}%`;
+
+      document.querySelectorAll<HTMLElement>(
+        ".countdown-node strong, .top-countdown strong",
+      ).forEach((element) => {
+        element.textContent = value;
+      });
+
+      document.querySelectorAll<HTMLElement>(
+        ".countdown-node i b, .top-countdown i b",
+      ).forEach((element) => {
+        element.style.width = progress;
+      });
+
+      document.querySelectorAll<HTMLElement>("p, span, small").forEach((element) => {
+        if (element.children.length) return;
+        const text = element.textContent ?? "";
+        const next = text
+          .replace(/Five-minute scans\.?/gi, "One-minute scans.")
+          .replace(/Checked every 5 minutes/gi, "Checked every 60 seconds")
+          .replace(/SECURE FIVE-MINUTE CYCLE/gi, "SECURE 60-SECOND CYCLE")
+          .replace(/05 MIN/g, "60 SEC");
+        if (next !== text) element.textContent = next;
+      });
+    };
+
+    update();
+    const timer = window.setInterval(update, 250);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  return null;
+}
+
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
   const publicSupabaseConfig = Route.useLoaderData();
@@ -140,6 +179,7 @@ function RootComponent() {
 
   return (
     <QueryClientProvider client={queryClient}>
+      <OneMinuteScanUiSync />
       {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
       <Outlet />
       <Toaster />
