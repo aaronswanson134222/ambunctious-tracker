@@ -78,21 +78,21 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Tracker Bot — X posts + Eldorado.gg prices" },
+      { title: "Ambunctious Tracker — X posts & price alerts" },
       {
         name: "description",
         content:
-          "Personal watcher that pings a Discord webhook when tracked X accounts post or Eldorado.gg listing prices change.",
+          "Monitor X accounts and Eldorado listing prices from one focused dashboard, with automatic Discord alerts.",
       },
-      { property: "og:title", content: "Tracker Bot — X posts + Eldorado.gg prices" },
+      { property: "og:title", content: "Ambunctious Tracker — X posts & price alerts" },
       {
         property: "og:description",
-        content: "Personal watcher that pings a Discord webhook when tracked X accounts post or Eldorado.gg listing prices change.",
+        content: "Monitor X accounts and Eldorado listing prices from one focused dashboard, with automatic Discord alerts.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
-      { name: "twitter:title", content: "Tracker Bot — X posts + Eldorado.gg prices" },
-      { name: "twitter:description", content: "Personal watcher that pings a Discord webhook when tracked X accounts post or Eldorado.gg listing prices change." },
+      { name: "twitter:title", content: "Ambunctious Tracker — X posts & price alerts" },
+      { name: "twitter:description", content: "Monitor X accounts and Eldorado listing prices from one focused dashboard, with automatic Discord alerts." },
       { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/64ef8a7e-f1f2-4853-82a0-93052d8f91f2/id-preview-df845111--4643c934-856e-487c-b22f-b0ba8a7abd8c.lovable.app-1784590112283.png" },
       { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/64ef8a7e-f1f2-4853-82a0-93052d8f91f2/id-preview-df845111--4643c934-856e-487c-b22f-b0ba8a7abd8c.lovable.app-1784590112283.png" },
     ],
