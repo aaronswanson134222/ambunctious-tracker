@@ -307,7 +307,7 @@ async function runChecks() {
     }
   }
 
-  // --- BIG Games website ---
+  // --- BIG Games website (navigation/category links are excluded by the parser) ---
   const websiteDb = supabaseAdmin as unknown as {
     from: (table: string) => any;
   };
