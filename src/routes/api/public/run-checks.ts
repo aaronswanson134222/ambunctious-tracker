@@ -1,4 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import type { Database } from "@/integrations/supabase/types";
 
 import {
   checkProductPrice,
@@ -22,6 +24,67 @@ type ProductRow = {
   last_price_gbp: number | null;
 };
 
+const API_RELEASE = {
+  version: "2026.07.21-ab-command-1",
+  title: "AB Command update",
+  changes: [
+    "New metallic AB command-centre interface",
+    "AB logo and widescreen identity added across the dashboard",
+    "Automatic API update logs now post to Discord",
+    "Five-minute monitoring, Discord retries and GBP prices remain active",
+  ],
+};
+
+async function sendApiReleaseLog(
+  supabaseAdmin: SupabaseClient<Database>,
+  errors: string[],
+) {
+  const { data, error } = await supabaseAdmin
+    .from("tracker_api_releases")
+    .select("version")
+    .eq("version", API_RELEASE.version)
+    .maybeSingle();
+  if (error) {
+    errors.push(`release log lookup: ${error.message}`);
+    return false;
+  }
+  if (data) return false;
+
+  try {
+    await sendDiscord({
+      embeds: [
+        {
+          author: { name: "AMBUNCTIOUS TRACKER // API CHANGELOG" },
+          title: API_RELEASE.title,
+          description: API_RELEASE.changes.map((item) => `• ${item}`).join("\n"),
+          color: 0xd8dbe2,
+          fields: [
+            { name: "Release", value: `\`${API_RELEASE.version}\``, inline: true },
+            { name: "Status", value: "Deployed", inline: true },
+          ],
+          footer: { text: "AB monitoring network" },
+          timestamp: new Date().toISOString(),
+        },
+      ],
+    });
+    const { error: insertError } = await supabaseAdmin
+      .from("tracker_api_releases")
+      .insert({
+        version: API_RELEASE.version,
+        title: API_RELEASE.title,
+        changes: API_RELEASE.changes,
+        notified_at: new Date().toISOString(),
+      });
+    if (insertError) errors.push(`release log save: ${insertError.message}`);
+    return true;
+  } catch (error) {
+    errors.push(
+      `release log Discord: ${error instanceof Error ? error.message : String(error)}`,
+    );
+    return false;
+  }
+}
+
 async function runChecks() {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const results = {
@@ -30,8 +93,14 @@ async function runChecks() {
     products_checked: 0,
     price_changes: 0,
     discord_sent: 0,
+    release_notifications: 0,
     errors: [] as string[],
   };
+
+  if (await sendApiReleaseLog(supabaseAdmin, results.errors)) {
+    results.discord_sent++;
+    results.release_notifications++;
+  }
 
   // --- X accounts ---
   const { data: xs, error: xErr } = await supabaseAdmin
