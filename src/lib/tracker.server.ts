@@ -232,6 +232,46 @@ export async function checkProductPrice(url: string): Promise<PriceCheckResult> 
   throw new Error("Could not find a price on the public Eldorado page");
 }
 
+// -------- BIG Games developer blog monitoring --------
+
+export type WebsiteUpdateResult = {
+  itemUrl: string;
+  title: string;
+  summary: string | null;
+};
+
+export async function checkBigGamesUpdates(url: string): Promise<WebsiteUpdateResult> {
+  const parsed = new URL(url);
+  if (
+    parsed.protocol !== "https:" ||
+    !(parsed.hostname === "biggames.io" || parsed.hostname === "www.biggames.io")
+  ) {
+    throw new Error("Only the official BIG Games website is allowed");
+  }
+
+  const html = await fetchPublicPage(new URL("https://www.biggames.io/post"), "BIG Games");
+  const links = [...html.matchAll(
+    /<a\b[^>]*href=["'](\/post\/[^"'?#]+)["'][^>]*>([\s\S]*?)<\/a>/gi,
+  )];
+  const latest = links.find((match) => {
+    const text = visibleText(match[2]);
+    return text.length > 2 && !/read more/i.test(text);
+  }) ?? links[0];
+
+  if (!latest) throw new Error("No developer blog was found on BIG Games");
+
+  const itemUrl = new URL(latest[1], "https://www.biggames.io").toString();
+  const text = visibleText(latest[2]);
+  const title =
+    text.match(/(?:\d{4}\s+)?([^.!?]{3,100}[!?]?)/)?.[1]?.trim() ||
+    latest[1].split("/").at(-1)!.replace(/-/g, " ");
+  return {
+    itemUrl,
+    title: title.slice(0, 120),
+    summary: text.length > title.length ? text.slice(0, 400) : null,
+  };
+}
+
 // -------- Discord webhook --------
 
 export async function sendDiscord(payload: {
