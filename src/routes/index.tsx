@@ -65,7 +65,7 @@ function relativeTime(iso: string | null) {
   return `${Math.floor(seconds / 86400)}d ago`;
 }
 
-const SCAN_INTERVAL_SECONDS = 5 * 60;
+const SCAN_INTERVAL_SECONDS = 60;
 
 function secondsUntilNextScan() {
   const elapsed = Math.floor(Date.now() / 1000) % SCAN_INTERVAL_SECONDS;
@@ -541,7 +541,7 @@ function Index() {
           <div className="hero-content">
             <p className="eyebrow"><span /> AB // LIVE INTELLIGENCE</p>
             <h2>CONTROL<br /><span>THE SIGNAL.</span></h2>
-            <p>Precision monitoring for X activity and market movement. Five-minute scans. Instant Discord transmission.</p>
+            <p>Precision monitoring for X activity and market movement. One-minute scans. Instant Discord transmission.</p>
             <div className="hero-status">
               <div><span>SCAN FREQUENCY</span><strong>05 MIN</strong></div>
               <div><span>DATA NODES</span><strong>{all.length.toString().padStart(2, "0")}</strong></div>
@@ -560,7 +560,7 @@ function Index() {
 
         <section className="metrics-grid mb-8 grid grid-cols-2 gap-px lg:grid-cols-4">
           <Card className="metric-card"><div className="metric-icon"><Activity /></div><p>Active trackers</p><strong>{all.length}</strong><span>{accounts.length} social · {products.length} prices · {robloxTrackers.length} Roblox</span></Card>
-          <Card className="metric-card"><div className="metric-icon"><Twitter /></div><p>X accounts</p><strong>{accounts.length}</strong><span>Checked every 5 minutes</span></Card>
+          <Card className="metric-card"><div className="metric-icon"><Twitter /></div><p>X accounts</p><strong>{accounts.length}</strong><span>Checked every 60 seconds</span></Card>
           <Card className="metric-card"><div className="metric-icon"><ShoppingBag /></div><p>Price watches</p><strong>{products.length}</strong><span>{Object.values(history).reduce((n, x) => n + x.length, 0)} data points</span></Card>
           <Card className={`metric-card ${issues ? "metric-warning" : ""}`}><div className="metric-icon">{issues ? <AlertTriangle /> : <CheckCircle2 />}</div><p>Tracker health</p><strong>{issues ? issues : "Good"}</strong><span>{issues ? "Need attention" : `Last check ${relativeTime(checked)}`}</span></Card>
         </section>
