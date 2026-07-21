@@ -624,64 +624,75 @@ export async function checkRobloxExperienceProducts(
   universeId: number,
   placeId: number,
   lookbackDays: number,
-  openCloudApiKey: string,
+  openCloudApiKey?: string | null,
 ): Promise<RobloxExperienceProduct[]> {
   if (!Number.isSafeInteger(universeId) || universeId <= 0) {
     throw new Error("Invalid Roblox universe ID");
   }
-  const apiKey = openCloudApiKey.trim();
-  if (!apiKey) throw new Error("Connect your Roblox Open Cloud key first");
   const safeLookback = [7, 30, 90, 365].includes(lookbackDays) ? lookbackDays : 30;
   const cutoff = Date.now() - safeLookback * 86_400_000;
-
-  const requests = [
-    {
-      kind: "game_pass" as const,
-      url: new URL(`https://apis.roblox.com/game-passes/v1/universes/${universeId}/game-passes/creator?maxPageSize=100`),
-      keys: ["gamePasses", "data"],
-    },
-    {
-      kind: "developer_product" as const,
-      url: new URL(`https://apis.roblox.com/developer-products/v2/universes/${universeId}/developer-products/creator?maxPageSize=100`),
-      keys: ["developerProducts", "data"],
-    },
-  ];
-
   const products: RobloxExperienceProduct[] = [];
-  for (const request of requests) {
-    let response: unknown;
+
+  // Roblox exposes game passes publicly, including for experiences the key owner
+  // does not manage. This endpoint deliberately receives no Open Cloud key.
+  const publicPassUrl = new URL(
+    `https://games.roblox.com/v1/games/${universeId}/game-passes`,
+  );
+  publicPassUrl.searchParams.set("limit", "100");
+  publicPassUrl.searchParams.set("sortOrder", "Asc");
+  const publicPassResponse = await fetchRobloxJson(publicPassUrl);
+  for (const row of rowsFromRobloxResponse(publicPassResponse, ["data"])) {
+    const id = Number(row.id ?? row.gamePassId);
+    if (!Number.isSafeInteger(id) || id <= 0) continue;
+    const createdAt = robloxDate(row);
+    if (createdAt && Date.parse(createdAt) < cutoff) continue;
+    products.push({
+      key: `game_pass:${universeId}:${id}`,
+      id,
+      kind: "game_pass",
+      name: typeof row.name === "string"
+        ? row.name.slice(0, 120)
+        : typeof row.displayName === "string"
+          ? row.displayName.slice(0, 120)
+          : `Game pass ${id}`,
+      url: `https://www.roblox.com/game-pass/${id}`,
+      createdAt,
+    });
+  }
+
+  // Roblox does not provide a public list of another creator's developer
+  // products. Include them only when the saved key is authorised for this
+  // specific universe; a 401/403 is an expected limitation and is not a scan
+  // failure for third-party experiences.
+  const apiKey = openCloudApiKey?.trim();
+  if (apiKey) {
+    const developerProductUrl = new URL(
+      `https://apis.roblox.com/developer-products/v2/universes/${universeId}/developer-products/creator`,
+    );
+    developerProductUrl.searchParams.set("maxPageSize", "100");
+    let developerResponse: unknown = null;
     try {
-      response = await fetchRobloxJson(request.url, apiKey);
+      developerResponse = await fetchRobloxJson(developerProductUrl, apiKey);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      if (message.includes("HTTP 403")) {
-        const scope = request.kind === "game_pass"
-          ? "game-pass:read"
-          : "developer-product:read";
-        throw new Error(
-          `Roblox denied ${request.kind.replaceAll("_", " ")} access for universe #${universeId}. Add this experience to the Open Cloud key and enable ${scope}.`,
-        );
-      }
-      throw error;
+      if (!/HTTP 401|HTTP 403|HTTP 404/.test(message)) throw error;
     }
-    for (const row of rowsFromRobloxResponse(response, request.keys)) {
-      const id = Number(row.id ?? row.gamePassId ?? row.productId);
+    for (const row of rowsFromRobloxResponse(
+      developerResponse,
+      ["developerProducts", "data"],
+    )) {
+      const id = Number(row.id ?? row.productId);
       if (!Number.isSafeInteger(id) || id <= 0) continue;
       const createdAt = robloxDate(row);
       if (createdAt && Date.parse(createdAt) < cutoff) continue;
-      const name = typeof row.name === "string"
-        ? row.name.slice(0, 120)
-        : request.kind === "game_pass"
-          ? `Game pass ${id}`
-          : `Developer product ${id}`;
       products.push({
-        key: `${request.kind}:${universeId}:${id}`,
+        key: `developer_product:${universeId}:${id}`,
         id,
-        kind: request.kind,
-        name,
-        url: request.kind === "game_pass"
-          ? `https://www.roblox.com/game-pass/${id}`
-          : `https://www.roblox.com/games/${placeId}`,
+        kind: "developer_product",
+        name: typeof row.name === "string"
+          ? row.name.slice(0, 120)
+          : `Developer product ${id}`,
+        url: `https://www.roblox.com/games/${placeId}`,
         createdAt,
       });
     }
