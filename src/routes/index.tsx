@@ -13,6 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { AB_BANNER, AB_MARK } from "@/lib/brand-assets";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -140,38 +141,50 @@ function Index() {
 
   return (
     <div className="min-h-screen bg-background">
-      <header className="sticky top-0 z-30 border-b border-white/8 bg-background/85 backdrop-blur-xl">
+      <header className="site-header sticky top-0 z-30">
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-4 sm:px-6">
           <div className="flex min-w-0 items-center gap-3">
-            <div className="brand-mark"><Eye size={21} /></div>
+            <div className="brand-mark"><img src={AB_MARK} alt="AB" /></div>
             <div className="min-w-0">
-              <h1 className="truncate text-base font-semibold tracking-tight sm:text-lg">Ambunctious Tracker</h1>
-              <p className="hidden text-xs text-muted-foreground sm:block">X posts and listing prices, checked every 5 minutes</p>
+              <h1 className="brand-title truncate">AMBUNCTIOUS</h1>
+              <p className="brand-subtitle hidden sm:block">TRACKER COMMAND SYSTEM</p>
             </div>
           </div>
-          <Button onClick={runNow} disabled={running || loading} className="h-10 rounded-xl px-3 sm:px-4">
+          <div className="flex items-center gap-3">
+            <div className="live-chip hidden sm:flex"><span /> NETWORK ONLINE</div>
+            <Button onClick={runNow} disabled={running || loading} className="metal-button h-10 rounded-none px-3 sm:px-4">
             {running ? <LoaderCircle className="animate-spin" /> : <RefreshCw />}
             <span>{running ? "Checking…" : "Check now"}</span>
-          </Button>
+            </Button>
+          </div>
         </div>
       </header>
 
-      <main className="mx-auto max-w-6xl px-4 py-7 sm:px-6 sm:py-10">
-        <section className="mb-7">
-          <p className="eyebrow">MONITORING OVERVIEW</p>
-          <div className="mt-2 flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
-            <div>
-              <h2 className="text-3xl font-semibold tracking-[-0.04em] sm:text-4xl">Everything you’re watching.</h2>
-              <p className="mt-2 max-w-xl text-sm leading-6 text-muted-foreground">One clean view of new X posts, Eldorado prices and tracker health. Alerts still go straight to Discord.</p>
-            </div>
-            <div className="relative w-full sm:w-64">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={16} />
-              <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search trackers" className="h-11 rounded-xl pl-9" />
+      <main className="mx-auto max-w-6xl px-4 pb-7 sm:px-6 sm:pb-10">
+        <section className="command-hero">
+          <img className="hero-banner" src={AB_BANNER} alt="" aria-hidden="true" />
+          <div className="hero-grid" />
+          <div className="hero-content">
+            <p className="eyebrow"><span /> AB // LIVE INTELLIGENCE</p>
+            <h2>CONTROL<br /><span>THE SIGNAL.</span></h2>
+            <p>Precision monitoring for X activity and market movement. Five-minute scans. Instant Discord transmission.</p>
+            <div className="hero-status">
+              <div><span>SCAN CYCLE</span><strong>05:00</strong></div>
+              <div><span>DATA NODES</span><strong>{all.length.toString().padStart(2, "0")}</strong></div>
+              <div><span>ANOMALIES</span><strong>{issues.toString().padStart(2, "0")}</strong></div>
             </div>
           </div>
         </section>
 
-        <section className="mb-8 grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <section className="control-bar">
+          <div><p className="eyebrow">MONITORING MATRIX</p><h3>Active intelligence</h3></div>
+          <div className="relative w-full sm:w-72">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={16} />
+              <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="SEARCH NETWORK" className="command-input h-11 rounded-none pl-9" />
+          </div>
+        </section>
+
+        <section className="metrics-grid mb-8 grid grid-cols-2 gap-px lg:grid-cols-4">
           <Card className="metric-card"><div className="metric-icon"><Activity /></div><p>Active trackers</p><strong>{all.length}</strong><span>{accounts.length} social · {products.length} prices</span></Card>
           <Card className="metric-card"><div className="metric-icon"><Twitter /></div><p>X accounts</p><strong>{accounts.length}</strong><span>Checked every 5 minutes</span></Card>
           <Card className="metric-card"><div className="metric-icon"><ShoppingBag /></div><p>Price watches</p><strong>{products.length}</strong><span>{Object.values(history).reduce((n, x) => n + x.length, 0)} data points</span></Card>
@@ -184,9 +197,9 @@ function Index() {
           </div>
         ) : (
           <Tabs defaultValue="x" className="space-y-5">
-            <TabsList className="h-12 w-full justify-start rounded-xl bg-card p-1 sm:w-auto">
-              <TabsTrigger value="x" className="h-10 flex-1 rounded-lg px-4 sm:flex-none"><Twitter /> X accounts <span className="count">{accounts.length}</span></TabsTrigger>
-              <TabsTrigger value="products" className="h-10 flex-1 rounded-lg px-4 sm:flex-none"><ShoppingBag /> Price watches <span className="count">{products.length}</span></TabsTrigger>
+            <TabsList className="command-tabs h-12 w-full justify-start rounded-none p-1 sm:w-auto">
+              <TabsTrigger value="x" className="h-10 flex-1 rounded-none px-4 sm:flex-none"><Twitter /> X SIGNALS <span className="count">{accounts.length}</span></TabsTrigger>
+              <TabsTrigger value="products" className="h-10 flex-1 rounded-none px-4 sm:flex-none"><ShoppingBag /> PRICE NODES <span className="count">{products.length}</span></TabsTrigger>
             </TabsList>
 
             <TabsContent value="x" className="space-y-4">
@@ -228,7 +241,7 @@ function Index() {
             </TabsContent>
           </Tabs>
         )}
-        <footer className="mt-10 flex items-center justify-between border-t border-white/8 py-5 text-xs text-muted-foreground"><span>Ambunctious Tracker</span><span>Private dashboard · Discord alerts</span></footer>
+        <footer className="site-footer mt-10"><div className="footer-brand"><img src={AB_MARK} alt="" /><span>AMBUNCTIOUS<br /><small>TRACKER COMMAND</small></span></div><span>PRIVATE NETWORK // DISCORD UPLINK ACTIVE</span></footer>
       </main>
     </div>
   );
