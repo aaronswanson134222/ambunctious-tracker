@@ -157,6 +157,107 @@ async function reserveNotification(
   throw new Error(`Could not reserve notification: ${error.message}`);
 }
 
+type ScanMetrics = {
+  x_checked: number;
+  x_new_posts: number;
+  products_checked: number;
+  price_drops: number;
+  websites_checked: number;
+  website_updates: number;
+  roblox_checked: number;
+  roblox_new_items: number;
+  errors: string[];
+};
+
+async function recordScanAndMaybeSendHourlySummary(
+  supabaseAdmin: SupabaseClient<Database>,
+  results: ScanMetrics,
+) {
+  const db = supabaseAdmin as any;
+  const recordedAt = new Date();
+  const { error: insertError } = await db.from("tracker_scan_runs").insert({
+    x_checked: results.x_checked,
+    x_new_posts: results.x_new_posts,
+    products_checked: results.products_checked,
+    price_drops: results.price_drops,
+    websites_checked: results.websites_checked,
+    website_updates: results.website_updates,
+    roblox_checked: results.roblox_checked,
+    roblox_new_items: results.roblox_new_items,
+    error_count: results.errors.length,
+  });
+  if (insertError) throw new Error(`Could not record scan: ${insertError.message}`);
+
+  const currentHour = new Date(recordedAt);
+  currentHour.setUTCMinutes(0, 0, 0);
+  const previousHour = new Date(currentHour.getTime() - 60 * 60 * 1000);
+  const fingerprint = previousHour.toISOString().slice(0, 13);
+  const reservation = await reserveNotification(
+    supabaseAdmin, "hourly_summary", "global", fingerprint,
+  );
+  if (!reservation) return false;
+
+  try {
+    const { data: scans, error } = await db
+      .from("tracker_scan_runs")
+      .select("x_checked,x_new_posts,products_checked,price_drops,websites_checked,website_updates,roblox_checked,roblox_new_items,error_count")
+      .gte("created_at", previousHour.toISOString())
+      .lt("created_at", currentHour.toISOString());
+    if (error) throw new Error(`Could not read hourly scans: ${error.message}`);
+
+    const totals = (scans ?? []).reduce(
+      (sum: Record<string, number>, scan: Record<string, number>) => {
+        for (const [key, value] of Object.entries(scan)) {
+          sum[key] = (sum[key] ?? 0) + (Number(value) || 0);
+        }
+        return sum;
+      },
+      {},
+    );
+    const detected =
+      (totals.x_new_posts ?? 0) +
+      (totals.price_drops ?? 0) +
+      (totals.website_updates ?? 0) +
+      (totals.roblox_new_items ?? 0);
+    const scanCount = scans?.length ?? 0;
+    const errorCount = totals.error_count ?? 0;
+
+    await sendDiscord({
+      embeds: [{
+        author: { name: "AMBUNCTIOUS TRACKER // HOURLY REPORT" },
+        title: detected > 0
+          ? `Detected ${detected} new update${detected === 1 ? "" : "s"}`
+          : "No new updates found",
+        description: scanCount > 0
+          ? "The monitoring network completed its scheduled checks for the last hour."
+          : "No completed scans were recorded during the last hour.",
+        color: errorCount > 0 ? 0xf59e0b : detected > 0 ? 0x22c55e : 0x8b95a5,
+        fields: [
+          { name: "X posts", value: String(totals.x_new_posts ?? 0), inline: true },
+          { name: "Price drops", value: String(totals.price_drops ?? 0), inline: true },
+          { name: "Website updates", value: String(totals.website_updates ?? 0), inline: true },
+          { name: "Roblox uploads", value: String(totals.roblox_new_items ?? 0), inline: true },
+          { name: "Scans completed", value: String(scanCount), inline: true },
+          {
+            name: "Check status",
+            value: errorCount > 0
+              ? `${errorCount} check error${errorCount === 1 ? "" : "s"}`
+              : "All checks healthy",
+            inline: true,
+          },
+        ],
+        footer: { text: `Hour beginning ${previousHour.toISOString().replace("T", " ").slice(0, 16)} UTC` },
+        timestamp: recordedAt.toISOString(),
+      }],
+    });
+    await reservation.markSent();
+    return true;
+  } catch (error) {
+    await reservation.release();
+    throw error;
+  }
+}
+
 async function runChecks() {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const results = {
@@ -170,6 +271,7 @@ async function runChecks() {
     roblox_new_items: 0,
     discord_sent: 0,
     release_notifications: 0,
+    hourly_summaries: 0,
     errors: [] as string[],
   };
 
@@ -474,6 +576,17 @@ async function runChecks() {
         last_error: msg.slice(0, 500),
       }).eq("id", row.id);
     }
+  }
+
+  try {
+    if (await recordScanAndMaybeSendHourlySummary(supabaseAdmin, results)) {
+      results.hourly_summaries++;
+      results.discord_sent++;
+    }
+  } catch (error) {
+    results.errors.push(
+      `hourly summary: ${error instanceof Error ? error.message : String(error)}`,
+    );
   }
 
   return results;
