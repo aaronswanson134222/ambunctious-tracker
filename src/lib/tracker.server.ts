@@ -398,7 +398,8 @@ function robloxDate(row: Record<string, unknown>) {
     row.createdTimestamp ??
     row.createdAt ??
     row.created ??
-    row.creationDate;
+    row.creationDate ??
+    row.itemCreatedUtc;
   if (typeof value !== "string" || !Number.isFinite(Date.parse(value))) return null;
   return new Date(value).toISOString();
 }
@@ -450,7 +451,7 @@ export async function checkRobloxCreations(
   );
   gamesUrl.searchParams.set("accessFilter", "Public");
   gamesUrl.searchParams.set("sortOrder", "Desc");
-  gamesUrl.searchParams.set("limit", "30");
+  gamesUrl.searchParams.set("limit", "25");
 
   const needsGames =
     enabled.has("experience") ||
