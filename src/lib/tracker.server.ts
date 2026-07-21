@@ -23,6 +23,9 @@ function isAllowedPageHost(candidate: URL, original: URL) {
   if (originalHost === "biggames.io" || originalHost === "www.biggames.io") {
     return host === "biggames.io" || host === "www.biggames.io";
   }
+  if (["catalog.roblox.com", "games.roblox.com"].includes(originalHost)) {
+    return host === originalHost;
+  }
   return false;
 }
 
@@ -32,7 +35,12 @@ async function readLimitedText(response: Response, provider: string) {
     throw new Error(`${provider} response was too large`);
   }
   const contentType = response.headers.get("content-type")?.toLowerCase() ?? "";
-  if (contentType && !contentType.includes("text/html") && !contentType.includes("application/xhtml+xml")) {
+  if (
+    contentType &&
+    !contentType.includes("text/html") &&
+    !contentType.includes("application/xhtml+xml") &&
+    !contentType.includes("application/json")
+  ) {
     throw new Error(`${provider} returned an unsupported content type`);
   }
   if (!response.body) return "";
@@ -70,7 +78,7 @@ async function fetchPublicPage(url: URL, provider: string): Promise<string> {
         signal: controller.signal,
         redirect: "manual",
         headers: {
-          Accept: "text/html,application/xhtml+xml",
+          Accept: "text/html,application/xhtml+xml,application/json",
           "Accept-Language": "en-GB,en;q=0.9",
           "User-Agent":
             "Mozilla/5.0 (compatible; AmbunctiousTracker/1.0; +https://ambunctious-tracker.lovable.app)",
@@ -345,6 +353,95 @@ export async function checkBigGamesUpdates(url: string): Promise<WebsiteUpdateRe
     title: title.slice(0, 120),
     summary: text.length > title.length ? text.slice(0, 400) : null,
   };
+}
+
+// -------- Roblox creation monitoring --------
+
+export type RobloxCreation = {
+  key: string;
+  id: number;
+  kind: "catalog" | "experience";
+  name: string;
+  url: string;
+};
+
+async function fetchRobloxJson(url: URL): Promise<unknown> {
+  const html = await fetchPublicPage(url, "Roblox");
+  try {
+    return JSON.parse(html);
+  } catch {
+    throw new Error("Roblox returned invalid data");
+  }
+}
+
+export async function checkRobloxCreations(
+  entityType: "user" | "group",
+  entityId: number,
+): Promise<RobloxCreation[]> {
+  if (!Number.isSafeInteger(entityId) || entityId <= 0) {
+    throw new Error("Invalid Roblox user or group ID");
+  }
+
+  const creatorType = entityType === "user" ? 1 : 2;
+  const catalogUrl = new URL("https://catalog.roblox.com/v1/search/items/details");
+  catalogUrl.searchParams.set("Category", "1");
+  catalogUrl.searchParams.set("CreatorType", String(creatorType));
+  catalogUrl.searchParams.set("CreatorTargetId", String(entityId));
+  catalogUrl.searchParams.set("SortType", "3");
+  catalogUrl.searchParams.set("Limit", "30");
+
+  const gamesUrl = new URL(
+    entityType === "user"
+      ? `https://games.roblox.com/v2/users/${entityId}/games`
+      : `https://games.roblox.com/v2/groups/${entityId}/games`,
+  );
+  gamesUrl.searchParams.set("accessFilter", "Public");
+  gamesUrl.searchParams.set("sortOrder", "Desc");
+  gamesUrl.searchParams.set("limit", "30");
+
+  const [catalogResult, gamesResult] = await Promise.allSettled([
+    fetchRobloxJson(catalogUrl),
+    fetchRobloxJson(gamesUrl),
+  ]);
+  if (catalogResult.status === "rejected" && gamesResult.status === "rejected") {
+    throw new Error(
+      `Roblox checks failed: ${catalogResult.reason instanceof Error ? catalogResult.reason.message : "catalog unavailable"}; ${gamesResult.reason instanceof Error ? gamesResult.reason.message : "experiences unavailable"}`,
+    );
+  }
+
+  const creations: RobloxCreation[] = [];
+  if (catalogResult.status === "fulfilled") {
+    const rows = (catalogResult.value as { data?: Array<{ id?: unknown; name?: unknown; itemType?: unknown }> }).data ?? [];
+    for (const row of rows) {
+      const id = Number(row.id);
+      if (!Number.isSafeInteger(id) || id <= 0) continue;
+      creations.push({
+        key: `catalog:${id}`,
+        id,
+        kind: "catalog",
+        name: typeof row.name === "string" ? row.name.slice(0, 120) : `Roblox item ${id}`,
+        url: `https://www.roblox.com/catalog/${id}`,
+      });
+    }
+  }
+  if (gamesResult.status === "fulfilled") {
+    const rows = (gamesResult.value as { data?: Array<{ id?: unknown; name?: unknown; rootPlace?: { id?: unknown } }> }).data ?? [];
+    for (const row of rows) {
+      const id = Number(row.id);
+      const placeId = Number(row.rootPlace?.id);
+      if (!Number.isSafeInteger(id) || id <= 0) continue;
+      creations.push({
+        key: `experience:${id}`,
+        id,
+        kind: "experience",
+        name: typeof row.name === "string" ? row.name.slice(0, 120) : `Roblox experience ${id}`,
+        url: Number.isSafeInteger(placeId) && placeId > 0
+          ? `https://www.roblox.com/games/${placeId}`
+          : `https://www.roblox.com/games?Keyword=${encodeURIComponent(String(id))}`,
+      });
+    }
+  }
+  return creations;
 }
 
 // -------- Discord webhook --------
