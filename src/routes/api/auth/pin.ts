@@ -16,70 +16,81 @@ export const Route = createFileRoute("/api/auth/pin")({
     handlers: {
       GET: async () => json({ error: "Method not allowed" }, 405),
       POST: async ({ request }) => {
-        const requestUrl = new URL(request.url);
-        const origin = request.headers.get("origin");
-        if (origin && origin !== requestUrl.origin) {
-          return json({ error: "Unauthorized" }, 401);
-        }
-        const declaredLength = Number(request.headers.get("content-length"));
-        if (Number.isFinite(declaredLength) && declaredLength > 256) {
-          return json({ error: "Invalid request" }, 400);
-        }
-
-        let pin = "";
+        let stage = "request";
         try {
-          const body = await request.json() as { pin?: unknown };
-          pin = typeof body.pin === "string" ? body.pin : "";
-        } catch {
-          return json({ error: "Invalid request" }, 400);
-        }
-        if (!/^\d{6}$/.test(pin)) {
-          return json({ error: "Invalid PIN or temporarily locked" }, 401);
-        }
+          const requestUrl = new URL(request.url);
+          const origin = request.headers.get("origin");
+          if (origin && origin !== requestUrl.origin) {
+            return json({ error: "Unauthorized" }, 401);
+          }
+          const declaredLength = Number(request.headers.get("content-length"));
+          if (Number.isFinite(declaredLength) && declaredLength > 256) {
+            return json({ error: "Invalid request" }, 400);
+          }
 
-        const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-        const rpc = supabaseAdmin.rpc as unknown as (
-          name: string,
-          args: Record<string, string>,
-        ) => Promise<{
-          data: Array<{ owner_email?: string; internal_password?: string }> | null;
-          error: { message: string } | null;
-        }>;
-        const { data, error } = await rpc("authenticate_tracker_pin", { candidate: pin });
-        pin = "";
-        const credentials = data?.[0];
-        if (error || !credentials?.owner_email || !credentials.internal_password) {
-          return json({ error: "Invalid PIN or temporarily locked" }, 401);
-        }
+          let pin = "";
+          try {
+            const body = await request.json() as { pin?: unknown };
+            pin = typeof body.pin === "string" ? body.pin : "";
+          } catch {
+            return json({ error: "Invalid request" }, 400);
+          }
+          if (!/^\d{6}$/.test(pin)) {
+            return json({ error: "Invalid PIN or temporarily locked" }, 401);
+          }
 
-        const supabaseUrl = process.env.SUPABASE_URL;
-        const publishableKey = process.env.SUPABASE_PUBLISHABLE_KEY;
-        if (!supabaseUrl || !publishableKey) {
-          console.error("PIN authentication is missing Supabase server configuration");
-          return json({ error: "Sign-in is temporarily unavailable" }, 503);
-        }
-        const { createClient } = await import("@supabase/supabase-js");
-        const authClient = createClient(supabaseUrl, publishableKey, {
-          auth: {
-            storage: undefined,
-            persistSession: false,
-            autoRefreshToken: false,
-          },
-        });
-        const { data: signIn, error: signInError } =
-          await authClient.auth.signInWithPassword({
-            email: credentials.owner_email,
-            password: credentials.internal_password,
+          stage = "admin";
+          const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+          stage = "verify";
+          const { data, error } = await (supabaseAdmin as any)
+            .rpc("authenticate_tracker_pin", { candidate: pin });
+          pin = "";
+          const credentials = (data as Array<{
+            owner_email?: string;
+            internal_password?: string;
+          }> | null)?.[0];
+          if (error || !credentials?.owner_email || !credentials.internal_password) {
+            return json({ error: "Invalid PIN or temporarily locked" }, 401);
+          }
+
+          stage = "config";
+          const supabaseUrl = process.env.SUPABASE_URL;
+          const publishableKey = process.env.SUPABASE_PUBLISHABLE_KEY;
+          if (!supabaseUrl || !publishableKey) {
+            console.error("PIN authentication is missing Supabase server configuration");
+            return json({ error: "Sign-in is temporarily unavailable", code: "AUTH_CONFIG" }, 503);
+          }
+
+          stage = "exchange";
+          const { createClient } = await import("@supabase/supabase-js");
+          const authClient = createClient(supabaseUrl, publishableKey, {
+            auth: {
+              storage: undefined,
+              persistSession: false,
+              autoRefreshToken: false,
+            },
           });
-        if (signInError || !signIn.session) {
-          console.error("PIN authentication session exchange failed", signInError?.message);
-          return json({ error: "Sign-in is temporarily unavailable" }, 503);
-        }
+          const { data: signIn, error: signInError } =
+            await authClient.auth.signInWithPassword({
+              email: credentials.owner_email,
+              password: credentials.internal_password,
+            });
+          if (signInError || !signIn.session) {
+            console.error("PIN authentication session exchange failed", signInError?.message);
+            return json({ error: "Sign-in is temporarily unavailable", code: "AUTH_EXCHANGE" }, 503);
+          }
 
-        return json({
-          access_token: signIn.session.access_token,
-          refresh_token: signIn.session.refresh_token,
-        });
+          return json({
+            access_token: signIn.session.access_token,
+            refresh_token: signIn.session.refresh_token,
+          });
+        } catch (error) {
+          console.error(`PIN authentication failed during ${stage}`, error);
+          return json({
+            error: "Sign-in is temporarily unavailable",
+            code: `AUTH_${stage.toUpperCase()}`,
+          }, 503);
+        }
       },
     },
   },
