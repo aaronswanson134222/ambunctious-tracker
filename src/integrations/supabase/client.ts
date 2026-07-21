@@ -34,6 +34,10 @@ type PublicSupabaseConfig = {
 
 let runtimeConfig: PublicSupabaseConfig | undefined;
 
+export function hasSupabaseRuntimeConfig() {
+  return runtimeConfig !== undefined;
+}
+
 export function configureSupabase(config: PublicSupabaseConfig) {
   const parsed = new URL(config.url);
   if (parsed.protocol !== "https:" || !config.publishableKey) {
