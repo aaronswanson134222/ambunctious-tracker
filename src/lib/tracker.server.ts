@@ -636,12 +636,12 @@ export async function checkRobloxExperienceProducts(
   // Roblox exposes game passes publicly, including for experiences the key owner
   // does not manage. This endpoint deliberately receives no Open Cloud key.
   const publicPassUrl = new URL(
-    `https://games.roblox.com/v1/games/${universeId}/game-passes`,
+    `https://apis.roblox.com/game-passes/v1/universes/${universeId}/game-passes`,
   );
-  publicPassUrl.searchParams.set("limit", "100");
-  publicPassUrl.searchParams.set("sortOrder", "Asc");
+  publicPassUrl.searchParams.set("passView", "Full");
+  publicPassUrl.searchParams.set("pageSize", "100");
   const publicPassResponse = await fetchRobloxJson(publicPassUrl);
-  for (const row of rowsFromRobloxResponse(publicPassResponse, ["data"])) {
+  for (const row of rowsFromRobloxResponse(publicPassResponse, ["gamePasses", "data"])) {
     const id = Number(row.id ?? row.gamePassId);
     if (!Number.isSafeInteger(id) || id <= 0) continue;
     const createdAt = robloxDate(row);
