@@ -591,6 +591,95 @@ export async function checkRobloxCreations(
   );
 }
 
+// -------- Individual Roblox experience product monitoring --------
+
+export type RobloxExperienceProduct = {
+  key: string;
+  id: number;
+  kind: "game_pass" | "developer_product";
+  name: string;
+  url: string;
+  createdAt: string | null;
+};
+
+export async function resolveRobloxUniverseId(
+  placeId: number,
+  openCloudApiKey?: string | null,
+): Promise<number> {
+  if (!Number.isSafeInteger(placeId) || placeId <= 0) {
+    throw new Error("Invalid Roblox game/place ID");
+  }
+  const value = await fetchRobloxJson(
+    new URL(`https://apis.roblox.com/universes/v1/places/${placeId}/universe`),
+    openCloudApiKey?.trim() || undefined,
+  ) as Record<string, unknown>;
+  const universeId = Number(value.universeId);
+  if (!Number.isSafeInteger(universeId) || universeId <= 0) {
+    throw new Error("Roblox could not resolve that game ID");
+  }
+  return universeId;
+}
+
+export async function checkRobloxExperienceProducts(
+  universeId: number,
+  placeId: number,
+  lookbackDays: number,
+  openCloudApiKey: string,
+): Promise<RobloxExperienceProduct[]> {
+  if (!Number.isSafeInteger(universeId) || universeId <= 0) {
+    throw new Error("Invalid Roblox universe ID");
+  }
+  const apiKey = openCloudApiKey.trim();
+  if (!apiKey) throw new Error("Connect your Roblox Open Cloud key first");
+  const safeLookback = [7, 30, 90, 365].includes(lookbackDays) ? lookbackDays : 30;
+  const cutoff = Date.now() - safeLookback * 86_400_000;
+
+  const requests = [
+    {
+      kind: "game_pass" as const,
+      url: new URL(`https://apis.roblox.com/game-passes/v1/universes/${universeId}/game-passes/creator?maxPageSize=100`),
+      keys: ["gamePasses", "data"],
+    },
+    {
+      kind: "developer_product" as const,
+      url: new URL(`https://apis.roblox.com/developer-products/v2/universes/${universeId}/developer-products/creator?maxPageSize=100`),
+      keys: ["developerProducts", "data"],
+    },
+  ];
+
+  const products: RobloxExperienceProduct[] = [];
+  for (const request of requests) {
+    const response = await fetchRobloxJson(request.url, apiKey);
+    for (const row of rowsFromRobloxResponse(response, request.keys)) {
+      const id = Number(row.id ?? row.gamePassId ?? row.productId);
+      if (!Number.isSafeInteger(id) || id <= 0) continue;
+      const createdAt = robloxDate(row);
+      if (createdAt && Date.parse(createdAt) < cutoff) continue;
+      const name = typeof row.name === "string"
+        ? row.name.slice(0, 120)
+        : request.kind === "game_pass"
+          ? `Game pass ${id}`
+          : `Developer product ${id}`;
+      products.push({
+        key: `${request.kind}:${universeId}:${id}`,
+        id,
+        kind: request.kind,
+        name,
+        url: request.kind === "game_pass"
+          ? `https://www.roblox.com/game-pass/${id}`
+          : `https://www.roblox.com/games/${placeId}`,
+        createdAt,
+      });
+    }
+  }
+
+  return products.sort((a, b) => {
+    const aTime = a.createdAt ? Date.parse(a.createdAt) : 0;
+    const bTime = b.createdAt ? Date.parse(b.createdAt) : 0;
+    return bTime - aTime || b.id - a.id;
+  });
+}
+
 // -------- Discord webhook --------
 
 export async function sendDiscord(payload: {

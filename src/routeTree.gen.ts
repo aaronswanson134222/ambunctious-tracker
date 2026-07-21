@@ -14,6 +14,7 @@ import { Route as ApiPublicRunChecksRouteImport } from './routes/api/public/run-
 import { Route as ApiAuthPinRouteImport } from './routes/api/auth/pin'
 import { Route as ApiRobloxKeyRouteImport } from './routes/api/roblox/key'
 import { Route as ApiRobloxForceCheckRouteImport } from './routes/api/roblox/force-check'
+import { Route as ApiRobloxExperiencesRouteImport } from './routes/api/roblox/experiences'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -35,6 +36,11 @@ const ApiRobloxForceCheckRoute = ApiRobloxForceCheckRouteImport.update({
   path: '/api/roblox/force-check',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiRobloxExperiencesRoute = ApiRobloxExperiencesRouteImport.update({
+  id: '/api/roblox/experiences',
+  path: '/api/roblox/experiences',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicRunChecksRoute = ApiPublicRunChecksRouteImport.update({
   id: '/api/public/run-checks',
   path: '/api/public/run-checks',
@@ -47,6 +53,7 @@ export interface FileRoutesByFullPath {
   '/api/roblox/key': typeof ApiRobloxKeyRoute
   '/api/roblox/force-check': typeof ApiRobloxForceCheckRoute
   '/api/public/run-checks': typeof ApiPublicRunChecksRoute
+  '/api/roblox/experiences': typeof ApiRobloxExperiencesRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -54,6 +61,7 @@ export interface FileRoutesByTo {
   '/api/roblox/key': typeof ApiRobloxKeyRoute
   '/api/roblox/force-check': typeof ApiRobloxForceCheckRoute
   '/api/public/run-checks': typeof ApiPublicRunChecksRoute
+  '/api/roblox/experiences': typeof ApiRobloxExperiencesRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -62,13 +70,14 @@ export interface FileRoutesById {
   '/api/roblox/key': typeof ApiRobloxKeyRoute
   '/api/roblox/force-check': typeof ApiRobloxForceCheckRoute
   '/api/public/run-checks': typeof ApiPublicRunChecksRoute
+  '/api/roblox/experiences': typeof ApiRobloxExperiencesRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/api/auth/pin' | '/api/roblox/key' | '/api/roblox/force-check' | '/api/public/run-checks'
+  fullPaths: '/' | '/api/auth/pin' | '/api/roblox/key' | '/api/roblox/force-check' | '/api/roblox/experiences' | '/api/public/run-checks'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/api/auth/pin' | '/api/roblox/key' | '/api/roblox/force-check' | '/api/public/run-checks'
-  id: '__root__' | '/' | '/api/auth/pin' | '/api/roblox/key' | '/api/roblox/force-check' | '/api/public/run-checks'
+  to: '/' | '/api/auth/pin' | '/api/roblox/key' | '/api/roblox/force-check' | '/api/roblox/experiences' | '/api/public/run-checks'
+  id: '__root__' | '/' | '/api/auth/pin' | '/api/roblox/key' | '/api/roblox/force-check' | '/api/roblox/experiences' | '/api/public/run-checks'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -76,6 +85,7 @@ export interface RootRouteChildren {
   ApiAuthPinRoute: typeof ApiAuthPinRoute
   ApiRobloxKeyRoute: typeof ApiRobloxKeyRoute
   ApiRobloxForceCheckRoute: typeof ApiRobloxForceCheckRoute
+  ApiRobloxExperiencesRoute: typeof ApiRobloxExperiencesRoute
   ApiPublicRunChecksRoute: typeof ApiPublicRunChecksRoute
 }
 
@@ -109,6 +119,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiRobloxForceCheckRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/roblox/experiences': {
+      id: '/api/roblox/experiences'
+      path: '/api/roblox/experiences'
+      fullPath: '/api/roblox/experiences'
+      preLoaderRoute: typeof ApiRobloxExperiencesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/run-checks': {
       id: '/api/public/run-checks'
       path: '/api/public/run-checks'
@@ -124,6 +141,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAuthPinRoute: ApiAuthPinRoute,
   ApiRobloxKeyRoute: ApiRobloxKeyRoute,
   ApiRobloxForceCheckRoute: ApiRobloxForceCheckRoute,
+  ApiRobloxExperiencesRoute: ApiRobloxExperiencesRoute,
   ApiPublicRunChecksRoute: ApiPublicRunChecksRoute,
 }
 export const routeTree = rootRouteImport
