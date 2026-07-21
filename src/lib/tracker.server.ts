@@ -68,6 +68,7 @@ export async function checkXProfile(handle: string): Promise<XCheckResult> {
       `https://syndication.twitter.com/srv/timeline-profile/screen-name/${encodeURIComponent(clean)}`,
     ),
     new URL(`https://x.com/${encodeURIComponent(clean)}`),
+    new URL(`https://mobile.x.com/${encodeURIComponent(clean)}`),
   ];
 
   const failures: string[] = [];
