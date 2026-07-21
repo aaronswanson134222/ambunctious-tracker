@@ -3,8 +3,8 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import {
   Activity, AlertTriangle, ArrowDownRight, ArrowUpRight, CheckCircle2,
-  ExternalLink, Eye, LoaderCircle, Plus, RefreshCw, Search, ShoppingBag,
-  Trash2, Twitter,
+  ExternalLink, Eye, LoaderCircle, LockKeyhole, LogOut, Mail, Plus,
+  RefreshCw, Search, ShoppingBag, Trash2, Twitter,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -13,6 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import type { User } from "@supabase/supabase-js";
 import { AB_BANNER, AB_MARK } from "@/lib/brand-assets";
 
 export const Route = createFileRoute("/")({
@@ -81,6 +82,10 @@ function Index() {
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState("");
   const [history, setHistory] = useState<Record<string, PricePoint[]>>({});
+  const [user, setUser] = useState<User | null>(null);
+  const [authLoading, setAuthLoading] = useState(true);
+  const [loginEmail, setLoginEmail] = useState("");
+  const [sendingLink, setSendingLink] = useState(false);
 
   async function loadAll(showLoading = false) {
     if (showLoading) setLoading(true);
@@ -102,7 +107,32 @@ function Index() {
     setLoading(false);
   }
 
-  useEffect(() => { void loadAll(); }, []);
+  useEffect(() => {
+    let active = true;
+    void supabase.auth.getSession().then(({ data }) => {
+      if (!active) return;
+      setUser(data.session?.user ?? null);
+      setAuthLoading(false);
+    });
+    const { data } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+      setAuthLoading(false);
+    });
+    return () => {
+      active = false;
+      data.subscription.unsubscribe();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (user) void loadAll(true);
+    else {
+      setAccounts([]);
+      setProducts([]);
+      setHistory({});
+      setLoading(false);
+    }
+  }, [user]);
 
   useEffect(() => {
     const updateCountdown = () => setScanSeconds(secondsUntilNextScan());
@@ -110,6 +140,24 @@ function Index() {
     const timer = window.setInterval(updateCountdown, 1000);
     return () => window.clearInterval(timer);
   }, []);
+
+  async function sendLoginLink() {
+    const email = loginEmail.trim().toLowerCase();
+    if (!email || !email.includes("@")) return toast.error("Enter your owner email.");
+    setSendingLink(true);
+    const { error } = await supabase.auth.signInWithOtp({
+      email,
+      options: { emailRedirectTo: window.location.origin },
+    });
+    setSendingLink(false);
+    if (error) toast.error("Couldn’t send the secure sign-in link.");
+    else toast.success("Secure sign-in link sent. Check your email.");
+  }
+
+  async function signOut() {
+    await supabase.auth.signOut();
+    toast.success("Signed out securely.");
+  }
 
   async function addAccount() {
     const clean = handle.replace(/^@/, "").trim();
@@ -144,7 +192,13 @@ function Index() {
   async function runNow() {
     setRunning(true);
     try {
-      const res = await fetch("/api/public/run-checks", { method: "POST" });
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData.session?.access_token;
+      if (!token) throw new Error("Your secure session expired. Sign in again.");
+      const res = await fetch("/api/public/run-checks", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
       const body = await res.json();
       if (!res.ok) throw new Error(body?.error || "The check could not be completed.");
       toast.success(`Check complete: ${body.x_new_posts} new posts and ${body.price_changes} price changes.`);
@@ -160,6 +214,43 @@ function Index() {
   const issues = all.filter((item) => item.last_error).length;
   const checked = all.map((item) => item.last_checked_at).filter(Boolean).sort().at(-1) ?? null;
 
+  if (authLoading) {
+    return <div className="auth-screen"><LoaderCircle className="animate-spin" /><span>VERIFYING SECURE SESSION</span></div>;
+  }
+
+  if (!user) {
+    return (
+      <main className="auth-screen">
+        <div className="auth-panel">
+          <div className="auth-lock"><LockKeyhole /></div>
+          <p className="eyebrow"><span /> RESTRICTED SYSTEM</p>
+          <h1>OWNER<br /><strong>ACCESS.</strong></h1>
+          <p>Ambunctious Tracker is private. Request a one-time secure link using the authorised owner email.</p>
+          <div className="auth-form">
+            <div className="relative">
+              <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={16} />
+              <Input
+                type="email"
+                autoComplete="email"
+                aria-label="Owner email"
+                placeholder="OWNER EMAIL"
+                value={loginEmail}
+                onChange={(event) => setLoginEmail(event.target.value)}
+                onKeyDown={(event) => event.key === "Enter" && void sendLoginLink()}
+                className="command-input h-12 rounded-none pl-10"
+              />
+            </div>
+            <Button onClick={sendLoginLink} disabled={sendingLink} className="metal-button h-12 rounded-none">
+              {sendingLink ? <LoaderCircle className="animate-spin" /> : <LockKeyhole />}
+              {sendingLink ? "Sending…" : "Send secure link"}
+            </Button>
+          </div>
+          <small>NO PASSWORD IS STORED // LINKS EXPIRE AUTOMATICALLY</small>
+        </div>
+      </main>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-background">
       <header className="site-header sticky top-0 z-30">
@@ -173,6 +264,9 @@ function Index() {
           </div>
           <div className="flex items-center gap-3">
             <div className="live-chip hidden sm:flex"><span /> NETWORK ONLINE</div>
+            <Button variant="ghost" size="icon" onClick={signOut} aria-label="Sign out" title="Sign out">
+              <LogOut />
+            </Button>
             <Button onClick={runNow} disabled={running || loading} className="metal-button h-10 rounded-none px-3 sm:px-4">
             {running ? <LoaderCircle className="animate-spin" /> : <RefreshCw />}
             <span>{running ? "Checking…" : "Check now"}</span>
@@ -180,6 +274,17 @@ function Index() {
           </div>
         </div>
       </header>
+
+      <section className="top-countdown" aria-label="Next scheduled network scan">
+        <div className="top-countdown-inner">
+          <div>
+            <p><span /> NEXT NETWORK SCAN</p>
+            <small>SECURE FIVE-MINUTE CYCLE</small>
+          </div>
+          <strong aria-live="off">{formatScanCountdown(scanSeconds)}</strong>
+          <i aria-hidden="true"><b style={{ width: `${(scanSeconds / SCAN_INTERVAL_SECONDS) * 100}%` }} /></i>
+        </div>
+      </section>
 
       <main className="mx-auto max-w-6xl px-4 pb-7 sm:px-6 sm:pb-10">
         <section className="command-hero">
@@ -190,11 +295,7 @@ function Index() {
             <h2>CONTROL<br /><span>THE SIGNAL.</span></h2>
             <p>Precision monitoring for X activity and market movement. Five-minute scans. Instant Discord transmission.</p>
             <div className="hero-status">
-              <div className="countdown-node" data-scan-interval="300">
-                <span>NEXT NETWORK SCAN</span>
-                <strong aria-live="off">{formatScanCountdown(scanSeconds)}</strong>
-                <i aria-hidden="true"><b style={{ width: `${(scanSeconds / SCAN_INTERVAL_SECONDS) * 100}%` }} /></i>
-              </div>
+              <div><span>SCAN FREQUENCY</span><strong>05 MIN</strong></div>
               <div><span>DATA NODES</span><strong>{all.length.toString().padStart(2, "0")}</strong></div>
               <div><span>ANOMALIES</span><strong>{issues.toString().padStart(2, "0")}</strong></div>
             </div>
