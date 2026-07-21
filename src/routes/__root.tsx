@@ -7,11 +7,13 @@ import {
   HeadContent,
   Scripts,
 } from "@tanstack/react-router";
+import { createServerFn } from "@tanstack/react-start";
 import { useEffect, type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { Toaster } from "@/components/ui/sonner";
+import { configureSupabase } from "@/integrations/supabase/client";
 
 function NotFoundComponent() {
   return (
@@ -73,7 +75,15 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
   );
 }
 
+const getPublicSupabaseConfig = createServerFn({ method: "GET" }).handler(async () => {
+  const url = process.env.SUPABASE_URL;
+  const publishableKey = process.env.SUPABASE_PUBLISHABLE_KEY;
+  if (!url || !publishableKey) throw new Error("Supabase is not configured");
+  return { url, publishableKey };
+});
+
 export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
+  loader: () => getPublicSupabaseConfig(),
   head: () => ({
     meta: [
       { charSet: "utf-8" },
@@ -125,6 +135,8 @@ function RootShell({ children }: { children: ReactNode }) {
 
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
+  const publicSupabaseConfig = Route.useLoaderData();
+  configureSupabase(publicSupabaseConfig);
 
   return (
     <QueryClientProvider client={queryClient}>

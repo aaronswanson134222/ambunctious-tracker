@@ -51,6 +51,14 @@ function withSecurityHeaders(response: Response, request: Request): Response {
   headers.set("Permissions-Policy", "camera=(), microphone=(), geolocation=(), payment=(), usb=()");
   headers.set("Cross-Origin-Opener-Policy", "same-origin-allow-popups");
   headers.set("Cross-Origin-Resource-Policy", "same-origin");
+  let supabaseConnectSources = "https://*.supabase.co wss://*.supabase.co";
+  try {
+    const supabaseOrigin = new URL(process.env.SUPABASE_URL ?? "").origin;
+    const supabaseSocketOrigin = supabaseOrigin.replace(/^https:/, "wss:");
+    supabaseConnectSources += ` ${supabaseOrigin} ${supabaseSocketOrigin}`;
+  } catch {
+    // The application will show its normal configuration error.
+  }
   headers.set(
     "Content-Security-Policy",
     [
@@ -63,7 +71,7 @@ function withSecurityHeaders(response: Response, request: Request): Response {
       "style-src 'self' 'unsafe-inline'",
       "img-src 'self' data: blob: https:",
       "font-src 'self' data:",
-      "connect-src 'self' https://*.supabase.co wss://*.supabase.co",
+      `connect-src 'self' ${supabaseConnectSources}`,
       "frame-src 'none'",
       "worker-src 'self' blob:",
       "manifest-src 'self'",
