@@ -6,6 +6,7 @@ import {
   checkBigGamesUpdates,
   checkProductPrice,
   checkRobloxCreations,
+  checkRobloxExperienceProducts,
   checkXProfile,
   convertToGBP,
   sendDiscord,
@@ -26,6 +27,15 @@ type RobloxRow = {
   scan_types: unknown;
   baselined_scan_types: unknown;
   lookback_days: number;
+};
+
+type RobloxExperienceRow = {
+  id: string;
+  place_id: number;
+  universe_id: number;
+  label: string;
+  lookback_days: number;
+  known_item_keys: unknown;
 };
 
 type WebsiteRow = {
@@ -512,6 +522,86 @@ async function runChecks() {
       await robloxDb.from("tracked_roblox_entities").update({
         last_checked_at: new Date().toISOString(),
         last_error: msg.slice(0, 500),
+      }).eq("id", row.id);
+    }
+  }
+
+  // --- Individual Roblox experiences ---
+  const { data: experienceTrackers, error: experienceListError } = await robloxDb
+    .from("tracked_roblox_experiences")
+    .select("id,place_id,universe_id,label,lookback_days,known_item_keys");
+  if (experienceListError) {
+    results.errors.push(`roblox experiences list: ${experienceListError.message}`);
+  }
+
+  for (const row of (experienceTrackers ?? []) as RobloxExperienceRow[]) {
+    results.roblox_checked++;
+    try {
+      if (typeof robloxOpenCloudKey !== "string" || !robloxOpenCloudKey.trim()) {
+        throw new Error("Connect your Roblox Open Cloud key first");
+      }
+      const products = await checkRobloxExperienceProducts(
+        Number(row.universe_id),
+        Number(row.place_id),
+        Number(row.lookback_days),
+        robloxOpenCloudKey,
+      );
+      const known = new Set(
+        Array.isArray(row.known_item_keys)
+          ? row.known_item_keys.filter((value): value is string => typeof value === "string")
+          : [],
+      );
+      const fresh = products.filter((item) => !known.has(item.key)).slice(0, 20);
+
+      for (const item of fresh) {
+        const reservation = await reserveNotification(
+          supabaseAdmin,
+          "roblox_experience_product",
+          row.id,
+          item.key,
+        );
+        if (!reservation) continue;
+        try {
+          await sendDiscord({
+            embeds: [{
+              author: {
+                name: `ROBLOX EXPERIENCE // ${row.label}`,
+                icon_url: "https://www.roblox.com/favicon.ico",
+              },
+              title: `New ${item.kind.replaceAll("_", " ")}: ${item.name}`,
+              url: item.url,
+              description: "A new monetization product was detected for this tracked experience.",
+              thumbnail: { url: "https://www.roblox.com/favicon.ico" },
+              color: 0x00a2ff,
+              timestamp: new Date().toISOString(),
+            }],
+          });
+          await reservation.markSent();
+          results.roblox_new_items++;
+          results.discord_sent++;
+        } catch (error) {
+          await reservation.release();
+          throw error;
+        }
+      }
+
+      await robloxDb.from("tracked_roblox_experiences").update({
+        known_item_keys: [...new Set([
+          ...products.map((item) => item.key),
+          ...known,
+        ])].slice(0, 1000),
+        items: products,
+        last_checked_at: new Date().toISOString(),
+        last_error: null,
+        updated_at: new Date().toISOString(),
+      }).eq("id", row.id);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      results.errors.push(`roblox experience/${row.label}: ${message}`);
+      await robloxDb.from("tracked_roblox_experiences").update({
+        last_checked_at: new Date().toISOString(),
+        last_error: message.slice(0, 500),
+        updated_at: new Date().toISOString(),
       }).eq("id", row.id);
     }
   }

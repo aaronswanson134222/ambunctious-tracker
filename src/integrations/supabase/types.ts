@@ -157,6 +157,48 @@ export type Database = {
         }
         Relationships: []
       }
+      tracked_roblox_experiences: {
+        Row: {
+          created_at: string
+          id: string
+          items: Json
+          known_item_keys: string[]
+          label: string
+          last_checked_at: string | null
+          last_error: string | null
+          lookback_days: number
+          place_id: number
+          universe_id: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          items?: Json
+          known_item_keys?: string[]
+          label: string
+          last_checked_at?: string | null
+          last_error?: string | null
+          lookback_days?: number
+          place_id: number
+          universe_id: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          items?: Json
+          known_item_keys?: string[]
+          label?: string
+          last_checked_at?: string | null
+          last_error?: string | null
+          lookback_days?: number
+          place_id?: number
+          universe_id?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       tracked_roblox_entities: {
         Row: {
           created_at: string
