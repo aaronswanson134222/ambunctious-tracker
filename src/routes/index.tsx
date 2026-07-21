@@ -88,6 +88,9 @@ function Index() {
   const [robloxLabel, setRobloxLabel] = useState("");
   const [robloxScanTypes, setRobloxScanTypes] = useState<string[]>(["catalog", "experience"]);
   const [robloxLookback, setRobloxLookback] = useState(30);
+  const [robloxApiKey, setRobloxApiKey] = useState("");
+  const [robloxKeyConfigured, setRobloxKeyConfigured] = useState(false);
+  const [savingRobloxKey, setSavingRobloxKey] = useState(false);
   const [running, setRunning] = useState(false);
   const [scanSeconds, setScanSeconds] = useState(SCAN_INTERVAL_SECONDS);
   const [loading, setLoading] = useState(true);
@@ -124,6 +127,49 @@ function Index() {
     setLoading(false);
   }
 
+  async function loadRobloxKeyStatus() {
+    const { data } = await supabase.auth.getSession();
+    const token = data.session?.access_token;
+    if (!token) return;
+    const response = await fetch("/api/roblox/key", {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (response.ok) {
+      const body = await response.json() as { configured?: boolean };
+      setRobloxKeyConfigured(body.configured === true);
+    }
+  }
+
+  async function saveRobloxKey() {
+    const key = robloxApiKey.trim();
+    if (key.length < 20 || /\s/.test(key)) {
+      return toast.error("Paste a valid Roblox Open Cloud API key.");
+    }
+    const { data } = await supabase.auth.getSession();
+    const token = data.session?.access_token;
+    if (!token) return toast.error("Your session expired. Sign in again.");
+    setSavingRobloxKey(true);
+    try {
+      const response = await fetch("/api/roblox/key", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ key }),
+      });
+      const body = await response.json() as { configured?: boolean; error?: string };
+      if (!response.ok || !body.configured) throw new Error(body.error ?? "Could not save key");
+      setRobloxApiKey("");
+      setRobloxKeyConfigured(true);
+      toast.success("Roblox Open Cloud connected securely.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not save Roblox key.");
+    } finally {
+      setSavingRobloxKey(false);
+    }
+  }
+
   useEffect(() => {
     let active = true;
     void supabase.auth.getSession().then(({ data }) => {
@@ -142,7 +188,10 @@ function Index() {
   }, []);
 
   useEffect(() => {
-    if (user) void loadAll(true);
+    if (user) {
+      void loadAll(true);
+      void loadRobloxKeyStatus();
+    }
     else {
       setAccounts([]);
       setProducts([]);
@@ -461,6 +510,13 @@ function Index() {
             </TabsContent>
 
             <TabsContent value="roblox" className="space-y-4">
+              <Card className="add-card items-start">
+                <div className="add-copy"><div className="add-icon"><LockKeyhole /></div><div><h3>Roblox Open Cloud</h3><p>{robloxKeyConfigured ? "Connected securely — monetization scans enabled." : "Connect a free read-only key for game passes and developer products."}</p></div></div>
+                <div className="flex w-full gap-2 sm:max-w-xl">
+                  <Input type="password" autoComplete="off" aria-label="Roblox Open Cloud API key" placeholder={robloxKeyConfigured ? "REPLACE SAVED KEY" : "PASTE OPEN CLOUD API KEY"} value={robloxApiKey} onChange={(e) => setRobloxApiKey(e.target.value)} className="h-11 rounded-xl" />
+                  <Button onClick={saveRobloxKey} disabled={savingRobloxKey || !robloxApiKey.trim()} className="h-11 rounded-xl">{savingRobloxKey ? "Saving…" : robloxKeyConfigured ? "Replace" : "Connect"}</Button>
+                </div>
+              </Card>
               <Card className="add-card items-start">
                 <div className="add-copy"><div className="add-icon"><Gamepad2 /></div><div><h3>Add a Roblox creator</h3><p>Watch public catalog uploads and experiences.</p></div></div>
                 <div className="w-full space-y-3 sm:max-w-3xl">
