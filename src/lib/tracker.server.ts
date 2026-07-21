@@ -23,7 +23,7 @@ function isAllowedPageHost(candidate: URL, original: URL) {
   if (originalHost === "biggames.io" || originalHost === "www.biggames.io") {
     return host === "biggames.io" || host === "www.biggames.io";
   }
-  if (["catalog.roblox.com", "games.roblox.com"].includes(originalHost)) {
+  if (["catalog.roblox.com", "games.roblox.com", "apis.roblox.com"].includes(originalHost)) {
     return host === originalHost;
   }
   return false;
@@ -63,7 +63,11 @@ async function readLimitedText(response: Response, provider: string) {
   }
 }
 
-async function fetchPublicPage(url: URL, provider: string): Promise<string> {
+async function fetchPublicPage(
+  url: URL,
+  provider: string,
+  extraHeaders: Record<string, string> = {},
+): Promise<string> {
   const original = new URL(url);
   let current = new URL(url);
   if (!isAllowedPageHost(current, original)) {
@@ -82,6 +86,7 @@ async function fetchPublicPage(url: URL, provider: string): Promise<string> {
           "Accept-Language": "en-GB,en;q=0.9",
           "User-Agent":
             "Mozilla/5.0 (compatible; AmbunctiousTracker/1.0; +https://ambunctious-tracker.lovable.app)",
+          ...extraHeaders,
         },
       });
       if (response.status >= 300 && response.status < 400) {
@@ -357,16 +362,30 @@ export async function checkBigGamesUpdates(url: string): Promise<WebsiteUpdateRe
 
 // -------- Roblox creation monitoring --------
 
+export type RobloxScanType =
+  | "catalog"
+  | "experience"
+  | "game_pass"
+  | "developer_product";
+
 export type RobloxCreation = {
   key: string;
   id: number;
-  kind: "catalog" | "experience";
+  kind: RobloxScanType;
   name: string;
   url: string;
+  createdAt: string | null;
 };
 
-async function fetchRobloxJson(url: URL): Promise<unknown> {
-  const html = await fetchPublicPage(url, "Roblox");
+async function fetchRobloxJson(
+  url: URL,
+  apiKey?: string,
+): Promise<unknown> {
+  const html = await fetchPublicPage(
+    url,
+    "Roblox",
+    apiKey ? { "x-api-key": apiKey } : {},
+  );
   try {
     return JSON.parse(html);
   } catch {
@@ -374,13 +393,46 @@ async function fetchRobloxJson(url: URL): Promise<unknown> {
   }
 }
 
+function robloxDate(row: Record<string, unknown>) {
+  const value =
+    row.createdTimestamp ??
+    row.createdAt ??
+    row.created ??
+    row.creationDate;
+  if (typeof value !== "string" || !Number.isFinite(Date.parse(value))) return null;
+  return new Date(value).toISOString();
+}
+
+function rowsFromRobloxResponse(
+  value: unknown,
+  keys: string[],
+): Array<Record<string, unknown>> {
+  if (!value || typeof value !== "object") return [];
+  const object = value as Record<string, unknown>;
+  for (const key of keys) {
+    const rows = object[key];
+    if (Array.isArray(rows)) {
+      return rows.filter((row): row is Record<string, unknown> =>
+        Boolean(row) && typeof row === "object",
+      );
+    }
+  }
+  return [];
+}
+
 export async function checkRobloxCreations(
   entityType: "user" | "group",
   entityId: number,
+  scanTypes: RobloxScanType[],
+  lookbackDays: number,
 ): Promise<RobloxCreation[]> {
   if (!Number.isSafeInteger(entityId) || entityId <= 0) {
     throw new Error("Invalid Roblox user or group ID");
   }
+  const enabled = new Set(scanTypes);
+  if (!enabled.size) throw new Error("Select at least one Roblox scan type");
+  const safeLookback = [7, 30, 90, 365].includes(lookbackDays) ? lookbackDays : 30;
+  const cutoff = Date.now() - safeLookback * 86_400_000;
 
   const creatorType = entityType === "user" ? 1 : 2;
   const catalogUrl = new URL("https://catalog.roblox.com/v1/search/items/details");
@@ -399,36 +451,58 @@ export async function checkRobloxCreations(
   gamesUrl.searchParams.set("sortOrder", "Desc");
   gamesUrl.searchParams.set("limit", "30");
 
-  const [catalogResult, gamesResult] = await Promise.allSettled([
-    fetchRobloxJson(catalogUrl),
-    fetchRobloxJson(gamesUrl),
+  const needsGames =
+    enabled.has("experience") ||
+    enabled.has("game_pass") ||
+    enabled.has("developer_product");
+  const [catalogResult, gamesResult] = await Promise.all([
+    enabled.has("catalog")
+      ? fetchRobloxJson(catalogUrl).then(
+          (value) => ({ value, error: null as Error | null }),
+          (error) => ({ value: null, error: error instanceof Error ? error : new Error(String(error)) }),
+        )
+      : Promise.resolve({ value: null, error: null }),
+    needsGames
+      ? fetchRobloxJson(gamesUrl).then(
+          (value) => ({ value, error: null as Error | null }),
+          (error) => ({ value: null, error: error instanceof Error ? error : new Error(String(error)) }),
+        )
+      : Promise.resolve({ value: null, error: null }),
   ]);
-  if (catalogResult.status === "rejected" && gamesResult.status === "rejected") {
+  if (
+    (enabled.has("catalog") && catalogResult.error) &&
+    (needsGames && gamesResult.error)
+  ) {
     throw new Error(
-      `Roblox checks failed: ${catalogResult.reason instanceof Error ? catalogResult.reason.message : "catalog unavailable"}; ${gamesResult.reason instanceof Error ? gamesResult.reason.message : "experiences unavailable"}`,
+      `Roblox checks failed: ${catalogResult.error.message}; ${gamesResult.error.message}`,
     );
   }
+  if (needsGames && gamesResult.error) throw gamesResult.error;
 
   const creations: RobloxCreation[] = [];
-  if (catalogResult.status === "fulfilled") {
-    const rows = (catalogResult.value as { data?: Array<{ id?: unknown; name?: unknown; itemType?: unknown }> }).data ?? [];
+  if (enabled.has("catalog") && catalogResult.value) {
+    const rows = rowsFromRobloxResponse(catalogResult.value, ["data"]);
     for (const row of rows) {
       const id = Number(row.id);
       if (!Number.isSafeInteger(id) || id <= 0) continue;
+      const createdAt = robloxDate(row);
       creations.push({
         key: `catalog:${id}`,
         id,
         kind: "catalog",
         name: typeof row.name === "string" ? row.name.slice(0, 120) : `Roblox item ${id}`,
         url: `https://www.roblox.com/catalog/${id}`,
+        createdAt,
       });
     }
   }
-  if (gamesResult.status === "fulfilled") {
-    const rows = (gamesResult.value as { data?: Array<{ id?: unknown; name?: unknown; rootPlace?: { id?: unknown } }> }).data ?? [];
-    for (const row of rows) {
+
+  const games = rowsFromRobloxResponse(gamesResult.value, ["data"]);
+  if (enabled.has("experience")) {
+    for (const row of games) {
       const id = Number(row.id);
-      const placeId = Number(row.rootPlace?.id);
+      const rootPlace = row.rootPlace as Record<string, unknown> | undefined;
+      const placeId = Number(rootPlace?.id);
       if (!Number.isSafeInteger(id) || id <= 0) continue;
       creations.push({
         key: `experience:${id}`,
@@ -438,10 +512,81 @@ export async function checkRobloxCreations(
         url: Number.isSafeInteger(placeId) && placeId > 0
           ? `https://www.roblox.com/games/${placeId}`
           : `https://www.roblox.com/games?Keyword=${encodeURIComponent(String(id))}`,
+        createdAt: robloxDate(row),
       });
     }
   }
-  return creations;
+
+  const monetizationTypes = [
+    enabled.has("game_pass") ? "game_pass" as const : null,
+    enabled.has("developer_product") ? "developer_product" as const : null,
+  ].filter((value): value is "game_pass" | "developer_product" => value !== null);
+
+  if (monetizationTypes.length) {
+    const apiKey = process.env.ROBLOX_OPEN_CLOUD_API_KEY;
+    if (!apiKey) {
+      throw new Error(
+        "Roblox monetization scans require ROBLOX_OPEN_CLOUD_API_KEY with game-pass:read and developer-product:read scopes",
+      );
+    }
+
+    for (const game of games.slice(0, 10)) {
+      const universeId = Number(game.id);
+      const rootPlace = game.rootPlace as Record<string, unknown> | undefined;
+      const placeId = Number(rootPlace?.id);
+      if (!Number.isSafeInteger(universeId) || universeId <= 0) continue;
+
+      for (const kind of monetizationTypes) {
+        const endpoint = kind === "game_pass"
+          ? `https://apis.roblox.com/game-passes/v1/universes/${universeId}/game-passes/creator`
+          : `https://apis.roblox.com/developer-products/v2/universes/${universeId}/developer-products/creator`;
+        const url = new URL(endpoint);
+        url.searchParams.set("maxPageSize", "100");
+        let response: unknown;
+        try {
+          response = await fetchRobloxJson(url, apiKey);
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          if (/HTTP 401|HTTP 403|HTTP 404/.test(message)) continue;
+          throw error;
+        }
+        const rows = rowsFromRobloxResponse(
+          response,
+          kind === "game_pass"
+            ? ["gamePasses", "data"]
+            : ["developerProducts", "data"],
+        );
+        for (const row of rows) {
+          const id = Number(row.id ?? row.gamePassId ?? row.productId);
+          if (!Number.isSafeInteger(id) || id <= 0) continue;
+          const createdAt = robloxDate(row);
+          if (createdAt && Date.parse(createdAt) < cutoff) continue;
+          const name =
+            typeof row.name === "string"
+              ? row.name.slice(0, 120)
+              : kind === "game_pass"
+                ? `Game pass ${id}`
+                : `Developer product ${id}`;
+          creations.push({
+            key: `${kind}:${universeId}:${id}`,
+            id,
+            kind,
+            name,
+            url: kind === "game_pass"
+              ? `https://www.roblox.com/game-pass/${id}`
+              : Number.isSafeInteger(placeId) && placeId > 0
+                ? `https://www.roblox.com/games/${placeId}`
+                : `https://create.roblox.com/dashboard/creations/experiences/${universeId}/monetization`,
+            createdAt,
+          });
+        }
+      }
+    }
+  }
+
+  return creations.filter((item) =>
+    !item.createdAt || Date.parse(item.createdAt) >= cutoff,
+  );
 }
 
 // -------- Discord webhook --------
