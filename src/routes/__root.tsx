@@ -82,6 +82,8 @@ const getPublicSupabaseConfig = createServerFn({ method: "GET" }).handler(async 
   return { url, publishableKey };
 });
 
+const SOCIAL_IMAGE = "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/64ef8a7e-f1f2-4853-82a0-93052d8f91f2/id-preview-df845111--4643c934-856e-487c-b22f-b0ba8a7abd8c.lovable.app-1784590112283.png";
+
 export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
   loader: () => getPublicSupabaseConfig(),
   head: () => ({
@@ -103,8 +105,8 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { name: "twitter:card", content: "summary_large_image" },
       { name: "twitter:title", content: "Ambunctious Tracker — X posts & price alerts" },
       { name: "twitter:description", content: "Automatic one-minute monitoring with Discord alerts." },
-      { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/64ef8a7e-f1f2-4853-82a0-93052d8f91f2/id-preview-df845111--4643c934-856e-487c-b22f-b0ba8a7abd8c.lovable.app-1784590112283.png" },
-      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/64ef8a7e-f1f2-4853-82a0-93052d8f35b4.r2.dev/64ef8a7e-f1f2-4853-82a0-93052d8f91f2/id-preview-df845111--4643c934-856e-487c-b22f-b0ba8a7abd8c.lovable.app-1784590112283.png" },
+      { property: "og:image", content: SOCIAL_IMAGE },
+      { name: "twitter:image", content: SOCIAL_IMAGE },
     ],
     links: [
       {
