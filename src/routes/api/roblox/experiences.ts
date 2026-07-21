@@ -58,12 +58,10 @@ export const Route = createFileRoute("/api/roblox/experiences")({
         if (![7, 30, 90, 365].includes(lookbackDays)) lookbackDays = 30;
 
         const db = client as any;
-        const { data: apiKey, error: keyError } = await db.rpc(
+        const { data: savedKey } = await db.rpc(
           "get_roblox_open_cloud_key",
         );
-        if (keyError || typeof apiKey !== "string" || !apiKey.trim()) {
-          return json({ error: "Connect your Roblox Open Cloud key first" }, 400);
-        }
+        const apiKey = typeof savedKey === "string" ? savedKey : null;
 
         try {
           const universeId = await resolveRobloxUniverseId(placeId);
