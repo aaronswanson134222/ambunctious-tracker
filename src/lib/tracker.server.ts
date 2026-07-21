@@ -649,7 +649,21 @@ export async function checkRobloxExperienceProducts(
 
   const products: RobloxExperienceProduct[] = [];
   for (const request of requests) {
-    const response = await fetchRobloxJson(request.url, apiKey);
+    let response: unknown;
+    try {
+      response = await fetchRobloxJson(request.url, apiKey);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (message.includes("HTTP 403")) {
+        const scope = request.kind === "game_pass"
+          ? "game-pass:read"
+          : "developer-product:read";
+        throw new Error(
+          `Roblox denied ${request.kind.replaceAll("_", " ")} access for universe #${universeId}. Add this experience to the Open Cloud key and enable ${scope}.`,
+        );
+      }
+      throw error;
+    }
     for (const row of rowsFromRobloxResponse(response, request.keys)) {
       const id = Number(row.id ?? row.gamePassId ?? row.productId);
       if (!Number.isSafeInteger(id) || id <= 0) continue;
