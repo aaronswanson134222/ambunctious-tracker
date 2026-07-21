@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import {
   Activity, AlertTriangle, ArrowDownRight, ArrowUpRight, CheckCircle2,
@@ -234,6 +234,6 @@ function Index() {
   );
 }
 
-function Empty({ icon, title, copy }: { icon: React.ReactNode; title: string; copy: string }) {
+function Empty({ icon, title, copy }: { icon: ReactNode; title: string; copy: string }) {
   return <Card className="empty-state"><div className="empty-icon">{icon}</div><h3>{title}</h3><p>{copy}</p></Card>;
 }
