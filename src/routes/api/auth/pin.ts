@@ -52,8 +52,22 @@ export const Route = createFileRoute("/api/auth/pin")({
           return json({ error: "Invalid PIN or temporarily locked" }, 401);
         }
 
+        const supabaseUrl = process.env.SUPABASE_URL;
+        const publishableKey = process.env.SUPABASE_PUBLISHABLE_KEY;
+        if (!supabaseUrl || !publishableKey) {
+          console.error("PIN authentication is missing Supabase server configuration");
+          return json({ error: "Sign-in is temporarily unavailable" }, 503);
+        }
+        const { createClient } = await import("@supabase/supabase-js");
+        const authClient = createClient(supabaseUrl, publishableKey, {
+          auth: {
+            storage: undefined,
+            persistSession: false,
+            autoRefreshToken: false,
+          },
+        });
         const { data: signIn, error: signInError } =
-          await supabaseAdmin.auth.signInWithPassword({
+          await authClient.auth.signInWithPassword({
             email: credentials.owner_email,
             password: credentials.internal_password,
           });
