@@ -1,43 +1,53 @@
 // Server-only helpers for the tracker bot.
 // Do NOT import from client components.
 
-const GATEWAY = "https://connector-gateway.lovable.dev/firecrawl/v2";
-
-type ScrapeResult = {
-  markdown?: string;
-  html?: string;
-  json?: Record<string, unknown>;
-  metadata?: { title?: string; sourceURL?: string; statusCode?: number };
-};
-
-async function firecrawlScrape(
-  url: string,
-  formats: (string | { type: "json"; prompt?: string; schema?: object })[],
-): Promise<ScrapeResult> {
-  const lovableKey = process.env.LOVABLE_API_KEY;
-  const fcKey = process.env.FIRECRAWL_API_KEY;
-  if (!lovableKey || !fcKey) throw new Error("Firecrawl credentials missing");
-
-  const res = await fetch(`${GATEWAY}/scrape`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${lovableKey}`,
-      "X-Connection-Api-Key": fcKey,
-    },
-    body: JSON.stringify({
-      url,
-      formats,
-      onlyMainContent: true,
-      waitFor: 2000,
-    }),
-  });
-  const text = await res.text();
-  if (!res.ok) {
-    throw new Error(`Firecrawl ${res.status}: ${text.slice(0, 300)}`);
+async function fetchPublicPage(url: URL, provider: string): Promise<string> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 15_000);
+  try {
+    const response = await fetch(url, {
+      signal: controller.signal,
+      redirect: "follow",
+      headers: {
+        Accept: "text/html,application/xhtml+xml",
+        "Accept-Language": "en-GB,en;q=0.9",
+        "User-Agent":
+          "Mozilla/5.0 (compatible; AmbunctiousTracker/1.0; +https://ambunctious-tracker.lovable.app)",
+      },
+    });
+    if (!response.ok) throw new Error(`${provider} returned HTTP ${response.status}`);
+    return await response.text();
+  } catch (error) {
+    if (error instanceof Error && error.name === "AbortError") {
+      throw new Error(`${provider} timed out`);
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeout);
   }
-  const json = JSON.parse(text) as { data?: ScrapeResult } & ScrapeResult;
-  return json.data ?? json;
+}
+
+function decodeHtml(value: string): string {
+  const named: Record<string, string> = {
+    amp: "&", apos: "'", gt: ">", lt: "<", nbsp: " ", quot: '"',
+  };
+  return value
+    .replace(/&#(\d+);/g, (_match, code: string) =>
+      String.fromCodePoint(Number(code)),
+    )
+    .replace(/&#x([0-9a-f]+);/gi, (_match, code: string) =>
+      String.fromCodePoint(Number.parseInt(code, 16)),
+    )
+    .replace(/&([a-z]+);/gi, (match, name: string) => named[name.toLowerCase()] ?? match);
+}
+
+function visibleText(html: string): string {
+  return decodeHtml(
+    html
+      .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, " ")
+      .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, " ")
+      .replace(/<[^>]+>/g, " "),
+  ).replace(/\s+/g, " ").trim();
 }
 
 // -------- X (Twitter) profile scraping --------
@@ -52,27 +62,58 @@ export async function checkXProfile(handle: string): Promise<XCheckResult> {
   if (!/^[A-Za-z0-9_]{1,15}$/.test(clean)) {
     throw new Error("Invalid X username");
   }
-  const url = `https://x.com/${encodeURIComponent(clean)}`;
-  const result = await firecrawlScrape(url, [
-    {
-      type: "json",
-      prompt:
-        "Extract the most recent original post (not a reply, not a repost) from this X/Twitter profile. Return { post_url: string (full https://x.com/... status URL), post_text: string (the tweet text) } or null if none found.",
-    },
-    "markdown",
-  ]);
-  const j = (result.json ?? {}) as { post_url?: string; post_text?: string };
-  let postUrl = typeof j.post_url === "string" ? j.post_url : null;
-  let postText = typeof j.post_text === "string" ? j.post_text : null;
 
-  // Fallback: scrape a status URL out of markdown
-  if (!postUrl && result.markdown) {
-    const m = result.markdown.match(
-      /https?:\/\/(?:x|twitter)\.com\/[^/\s)]+\/status\/\d+/i,
-    );
-    if (m) postUrl = m[0];
+  const sources = [
+    new URL(
+      `https://syndication.twitter.com/srv/timeline-profile/screen-name/${encodeURIComponent(clean)}`,
+    ),
+    new URL(`https://x.com/${encodeURIComponent(clean)}`),
+  ];
+
+  const failures: string[] = [];
+  for (const source of sources) {
+    try {
+      const html = await fetchPublicPage(source, "X public timeline");
+      const escapedHandle = clean.replace(/[.*+?^$\{\}()|[\]\\]/g, "\\$&");
+      const statusPatterns = [
+        new RegExp(
+          `https?:\\/\\/(?:x|twitter)\\.com\\/${escapedHandle}\\/status\\/(\\d+)`,
+          "i",
+        ),
+        /data-tweet-id=["'](\d+)["']/i,
+        /["']rest_id["']\s*:\s*["'](\d+)["']/i,
+      ];
+      const id = statusPatterns
+        .map((pattern) => html.match(pattern)?.[1])
+        .find(Boolean);
+      if (!id) throw new Error("No public post was present in the timeline");
+
+      const tweetBlock =
+        html.match(
+          new RegExp(
+            `<[^>]+data-tweet-id=["']${id}["'][^>]*>([\\s\\S]{0,12000})`,
+            "i",
+          ),
+        )?.[1] ?? html;
+      const encodedText =
+        tweetBlock.match(
+          /<p[^>]*class=["'][^"']*timeline-Tweet-text[^"']*["'][^>]*>([\s\S]*?)<\/p>/i,
+        )?.[1] ??
+        tweetBlock.match(/["']full_text["']\s*:\s*["']((?:\\.|[^"'\\])*)["']/i)?.[1];
+      const postText = encodedText
+        ? visibleText(encodedText.replace(/\\n/g, " ").replace(/\\(["'\\])/g, "$1")).slice(0, 1000)
+        : null;
+
+      return {
+        postUrl: `https://x.com/${clean}/status/${id}`,
+        postText,
+      };
+    } catch (error) {
+      failures.push(error instanceof Error ? error.message : String(error));
+    }
   }
-  return { postUrl, postText };
+
+  throw new Error(`Free X timeline unavailable: ${failures.join("; ").slice(0, 300)}`);
 }
 
 // -------- Eldorado.gg price scraping --------
@@ -140,41 +181,54 @@ function assertAllowedProductUrl(value: string): URL {
   return parsed;
 }
 
+function parseDisplayedPrice(value: string): number | null {
+  const compact = value.replace(/\s/g, "");
+  const normalized =
+    compact.includes(",") && compact.includes(".")
+      ? compact.replace(/,/g, "")
+      : compact.replace(",", ".");
+  const amount = Number.parseFloat(normalized);
+  return Number.isFinite(amount) && amount >= 0 ? amount : null;
+}
+
 export async function checkProductPrice(url: string): Promise<PriceCheckResult> {
   const safeUrl = assertAllowedProductUrl(url);
-  const result = await firecrawlScrape(safeUrl.toString(), [
-    {
-      type: "json",
-      prompt:
-        "Extract the current listing price shown on this Eldorado.gg product page. Return { price: number (numeric value only, no currency symbol, no thousands separators, use '.' as decimal), currency: string (ISO code like USD, EUR, GBP, or the symbol if code is unknown) }. If multiple prices are shown, return the current buy-now price for one unit.",
-    },
-    "markdown",
-  ]);
-  const j = (result.json ?? {}) as { price?: number | string; currency?: string };
-  let price: number | null = null;
-  if (typeof j.price === "number" && isFinite(j.price)) price = j.price;
-  else if (typeof j.price === "string") {
-    const n = parseFloat(j.price.replace(/[^0-9.]/g, ""));
-    if (isFinite(n)) price = n;
-  }
-  const currency =
-    typeof j.currency === "string" ? normalizeCurrency(j.currency) : null;
+  const html = await fetchPublicPage(safeUrl, "Eldorado");
+  const text = visibleText(html);
 
-  // Fallback: regex in markdown
-  if (price == null && result.markdown) {
-    const m = result.markdown.match(/([$€£])\s?([0-9]+(?:[.,][0-9]{2})?)/);
-    if (m) {
-      price = parseFloat(m[2].replace(",", "."));
-      if (!currency) {
-        const sym = m[1];
-        return {
-          price,
-          currency: sym === "$" ? "USD" : sym === "€" ? "EUR" : "GBP",
-        };
-      }
+  const displayed =
+    text.match(/\bPrice\s+([$€£])\s*([0-9][0-9.,]{0,20})\s*\/\s*[A-Za-z0-9]+/i) ??
+    text.match(/\bCurrent offer\s+([$€£])\s*([0-9][0-9.,]{0,20})/i);
+  if (displayed) {
+    const price = parseDisplayedPrice(displayed[2]);
+    if (price != null) {
+      return {
+        price,
+        currency: displayed[1] === "$" ? "USD" : displayed[1] === "€" ? "EUR" : "GBP",
+      };
     }
   }
-  return { price, currency };
+
+  const structured = html.match(
+    /["']price["']\s*:\s*["']?([0-9]+(?:\.[0-9]+)?)["']?[\s\S]{0,300}?["']priceCurrency["']\s*:\s*["']([A-Z]{3})["']/i,
+  );
+  if (structured) {
+    const price = parseDisplayedPrice(structured[1]);
+    if (price != null) return { price, currency: normalizeCurrency(structured[2]) };
+  }
+
+  const fallback = text.match(/([$€£])\s*([0-9]+(?:[.,][0-9]{1,6})?)\s*\/\s*[A-Za-z0-9]+/);
+  if (fallback) {
+    const price = parseDisplayedPrice(fallback[2]);
+    if (price != null) {
+      return {
+        price,
+        currency: fallback[1] === "$" ? "USD" : fallback[1] === "€" ? "EUR" : "GBP",
+      };
+    }
+  }
+
+  throw new Error("Could not find a price on the public Eldorado page");
 }
 
 // -------- Discord webhook --------
