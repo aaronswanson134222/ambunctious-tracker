@@ -164,6 +164,9 @@ export type Database = {
           entity_type: string
           id: string
           known_item_keys: Json
+          baselined_scan_types: string[]
+          scan_types: string[]
+          lookback_days: number
           label: string
           last_checked_at: string | null
           last_error: string | null
@@ -175,6 +178,9 @@ export type Database = {
           entity_type: string
           id?: string
           known_item_keys?: Json
+          baselined_scan_types?: string[]
+          scan_types?: string[]
+          lookback_days?: number
           label: string
           last_checked_at?: string | null
           last_error?: string | null
@@ -186,6 +192,9 @@ export type Database = {
           entity_type?: string
           id?: string
           known_item_keys?: Json
+          baselined_scan_types?: string[]
+          scan_types?: string[]
+          lookback_days?: number
           label?: string
           last_checked_at?: string | null
           last_error?: string | null
