@@ -491,7 +491,7 @@ export async function sendDiscord(payload: {
     try {
       res = await fetch(webhookUrl, {
         method: "POST",
-        redirect: "error",
+        redirect: "manual",
         signal: controller.signal,
         headers: {
           "Content-Type": "application/json",
