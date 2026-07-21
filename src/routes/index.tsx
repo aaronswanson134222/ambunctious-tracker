@@ -30,9 +30,9 @@ type XAccount = {
 };
 type Product = {
   id: string; url: string; label: string; last_price: number | null; currency: string | null;
-  last_checked_at: string | null; last_error: string | null;
+  last_price_gbp: number | null; last_checked_at: string | null; last_error: string | null;
 };
-type PricePoint = { checked_at: string; price: number };
+type PricePoint = { checked_at: string; price: number; price_gbp: number | null };
 
 function relativeTime(iso: string | null) {
   if (!iso) return "Not checked yet";
@@ -78,9 +78,9 @@ function Index() {
     setProducts((ps ?? []) as Product[]);
     if (ps?.length) {
       const entries = await Promise.all(ps.map(async (p) => {
-        const { data } = await supabase.from("price_history").select("checked_at, price")
+        const { data } = await supabase.from("price_history").select("checked_at, price, price_gbp")
           .eq("product_id", p.id).order("checked_at", { ascending: true }).limit(200);
-        return [p.id, (data ?? []).map((r) => ({ checked_at: r.checked_at as string, price: Number(r.price) }))] as const;
+        return [p.id, (data ?? []).map((r) => ({ checked_at: r.checked_at as string, price: Number(r.price), price_gbp: r.price_gbp == null ? null : Number(r.price_gbp) }))] as const;
       }));
       setHistory(Object.fromEntries(entries));
     } else setHistory({});
@@ -146,7 +146,7 @@ function Index() {
             <div className="brand-mark"><Eye size={21} /></div>
             <div className="min-w-0">
               <h1 className="truncate text-base font-semibold tracking-tight sm:text-lg">Ambunctious Tracker</h1>
-              <p className="hidden text-xs text-muted-foreground sm:block">X posts and listing prices, watched around the clock</p>
+              <p className="hidden text-xs text-muted-foreground sm:block">X posts and listing prices, checked every 5 minutes</p>
             </div>
           </div>
           <Button onClick={runNow} disabled={running || loading} className="h-10 rounded-xl px-3 sm:px-4">
@@ -173,7 +173,7 @@ function Index() {
 
         <section className="mb-8 grid grid-cols-2 gap-3 lg:grid-cols-4">
           <Card className="metric-card"><div className="metric-icon"><Activity /></div><p>Active trackers</p><strong>{all.length}</strong><span>{accounts.length} social · {products.length} prices</span></Card>
-          <Card className="metric-card"><div className="metric-icon"><Twitter /></div><p>X accounts</p><strong>{accounts.length}</strong><span>Checked hourly</span></Card>
+          <Card className="metric-card"><div className="metric-icon"><Twitter /></div><p>X accounts</p><strong>{accounts.length}</strong><span>Checked every 5 minutes</span></Card>
           <Card className="metric-card"><div className="metric-icon"><ShoppingBag /></div><p>Price watches</p><strong>{products.length}</strong><span>{Object.values(history).reduce((n, x) => n + x.length, 0)} data points</span></Card>
           <Card className={`metric-card ${issues ? "metric-warning" : ""}`}><div className="metric-icon">{issues ? <AlertTriangle /> : <CheckCircle2 />}</div><p>Tracker health</p><strong>{issues ? issues : "Good"}</strong><span>{issues ? "Need attention" : `Last check ${relativeTime(checked)}`}</span></Card>
         </section>
@@ -219,7 +219,7 @@ function Index() {
                   const delta = points.length > 1 ? points.at(-1)!.price - points.at(-2)!.price : 0;
                   return <Card key={p.id} className="tracker-card">
                     <div className="flex items-start justify-between gap-3"><div className="flex min-w-0 items-center gap-3"><div className="tracker-avatar"><ShoppingBag /></div><div className="min-w-0"><a className="tracker-title" href={p.url} target="_blank" rel="noreferrer">{p.label} <ExternalLink /></a><p className="tracker-meta">Checked {relativeTime(p.last_checked_at)}</p></div></div><StatusPill error={p.last_error} checked={p.last_checked_at} /></div>
-                    <div className="mt-5 flex items-end justify-between"><div><p className="panel-label">CURRENT PRICE</p><p className="price">{currencyPrice(p.currency, p.last_price)}</p></div>{delta !== 0 && <span className={`delta ${delta < 0 ? "down" : "up"}`}>{delta < 0 ? <ArrowDownRight /> : <ArrowUpRight />}{Math.abs(delta).toFixed(2)}</span>}</div>
+                    <div className="mt-5 flex items-end justify-between"><div><p className="panel-label">CURRENT PRICE</p><p className="price">{currencyPrice(p.currency, p.last_price)}</p>{p.last_price_gbp != null && p.currency !== "GBP" && <p className="gbp-price">≈ £{Number(p.last_price_gbp).toFixed(2)} GBP</p>}</div>{delta !== 0 && <span className={`delta ${delta < 0 ? "down" : "up"}`}>{delta < 0 ? <ArrowDownRight /> : <ArrowUpRight />}{Math.abs(delta).toFixed(2)}</span>}</div>
                     {points.length > 1 ? <div className="mt-4 h-32"><ResponsiveContainer width="100%" height="100%"><LineChart data={points}><XAxis dataKey="checked_at" hide /><YAxis hide domain={["auto", "auto"]} /><Tooltip contentStyle={{ background: "#111827", border: "1px solid #263247", borderRadius: 12 }} labelFormatter={(v) => new Date(v as string).toLocaleString()} formatter={(v) => [currencyPrice(p.currency, Number(v)), "Price"]} /><Line type="monotone" dataKey="price" stroke="#38bdf8" dot={false} strokeWidth={2.5} /></LineChart></ResponsiveContainer></div> : <div className="content-panel"><p className="text-sm text-muted-foreground">Price history will appear after two successful checks.</p></div>}
                     {p.last_error && <p className="error-copy"><AlertTriangle /> {p.last_error}</p>}
                     <div className="card-footer"><span>{points.length} recorded checks</span><Button variant="ghost" size="sm" onClick={() => void remove("product", p.id, p.label)}><Trash2 /> Remove</Button></div>
