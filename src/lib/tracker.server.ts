@@ -629,8 +629,9 @@ export async function checkRobloxExperienceProducts(
   if (!Number.isSafeInteger(universeId) || universeId <= 0) {
     throw new Error("Invalid Roblox universe ID");
   }
-  const safeLookback = [7, 30, 90, 365].includes(lookbackDays) ? lookbackDays : 30;
-  const cutoff = Date.now() - safeLookback * 86_400_000;
+  // Experience inventories always show the complete current product list.
+  // New-upload detection is based on unseen product IDs, not item age.
+  void lookbackDays;
   const products: RobloxExperienceProduct[] = [];
 
   // Roblox exposes game passes publicly, including for experiences the key owner
@@ -645,7 +646,6 @@ export async function checkRobloxExperienceProducts(
     const id = Number(row.id ?? row.gamePassId);
     if (!Number.isSafeInteger(id) || id <= 0) continue;
     const createdAt = robloxDate(row);
-    if (createdAt && Date.parse(createdAt) < cutoff) continue;
     products.push({
       key: `game_pass:${universeId}:${id}`,
       id,
@@ -684,8 +684,7 @@ export async function checkRobloxExperienceProducts(
       const id = Number(row.id ?? row.productId);
       if (!Number.isSafeInteger(id) || id <= 0) continue;
       const createdAt = robloxDate(row);
-      if (createdAt && Date.parse(createdAt) < cutoff) continue;
-      products.push({
+        products.push({
         key: `developer_product:${universeId}:${id}`,
         id,
         kind: "developer_product",
