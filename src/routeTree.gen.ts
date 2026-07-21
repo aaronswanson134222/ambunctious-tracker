@@ -46,21 +46,21 @@ export interface FileRoutesByFullPath {
   '/api/auth/pin': typeof ApiAuthPinRoute
   '/api/roblox/key': typeof ApiRobloxKeyRoute
   '/api/roblox/force-check': typeof ApiRobloxForceCheckRoute
-  '/api/roblox/key': typeof ApiRobloxKeyRoute
-  '/api/roblox/force-check': typeof ApiRobloxForceCheckRoute
   '/api/public/run-checks': typeof ApiPublicRunChecksRoute
-  '/api/roblox/force-check': typeof ApiRobloxForceCheckRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/api/auth/pin': typeof ApiAuthPinRoute
   '/api/roblox/key': typeof ApiRobloxKeyRoute
+  '/api/roblox/force-check': typeof ApiRobloxForceCheckRoute
   '/api/public/run-checks': typeof ApiPublicRunChecksRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/api/auth/pin': typeof ApiAuthPinRoute
+  '/api/roblox/key': typeof ApiRobloxKeyRoute
+  '/api/roblox/force-check': typeof ApiRobloxForceCheckRoute
   '/api/public/run-checks': typeof ApiPublicRunChecksRoute
 }
 export interface FileRouteTypes {
