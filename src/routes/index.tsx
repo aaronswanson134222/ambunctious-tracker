@@ -44,6 +44,19 @@ function relativeTime(iso: string | null) {
   return `${Math.floor(seconds / 86400)}d ago`;
 }
 
+const SCAN_INTERVAL_SECONDS = 5 * 60;
+
+function secondsUntilNextScan() {
+  const elapsed = Math.floor(Date.now() / 1000) % SCAN_INTERVAL_SECONDS;
+  return elapsed === 0 ? SCAN_INTERVAL_SECONDS : SCAN_INTERVAL_SECONDS - elapsed;
+}
+
+function formatScanCountdown(totalSeconds: number) {
+  const minutes = Math.floor(totalSeconds / 60).toString().padStart(2, "0");
+  const seconds = (totalSeconds % 60).toString().padStart(2, "0");
+  return `${minutes}:${seconds}`;
+}
+
 function currencyPrice(currency: string | null, price: number | null) {
   if (price == null) return "Awaiting first check";
   const code = currency?.length === 3 ? currency : "USD";
@@ -64,6 +77,7 @@ function Index() {
   const [productUrl, setProductUrl] = useState("");
   const [productLabel, setProductLabel] = useState("");
   const [running, setRunning] = useState(false);
+  const [scanSeconds, setScanSeconds] = useState(SCAN_INTERVAL_SECONDS);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState("");
   const [history, setHistory] = useState<Record<string, PricePoint[]>>({});
@@ -89,6 +103,13 @@ function Index() {
   }
 
   useEffect(() => { void loadAll(); }, []);
+
+  useEffect(() => {
+    const updateCountdown = () => setScanSeconds(secondsUntilNextScan());
+    updateCountdown();
+    const timer = window.setInterval(updateCountdown, 1000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   async function addAccount() {
     const clean = handle.replace(/^@/, "").trim();
@@ -169,7 +190,11 @@ function Index() {
             <h2>CONTROL<br /><span>THE SIGNAL.</span></h2>
             <p>Precision monitoring for X activity and market movement. Five-minute scans. Instant Discord transmission.</p>
             <div className="hero-status">
-              <div><span>SCAN CYCLE</span><strong>05:00</strong></div>
+              <div className="countdown-node">
+                <span>NEXT NETWORK SCAN</span>
+                <strong aria-live="off">{formatScanCountdown(scanSeconds)}</strong>
+                <i aria-hidden="true"><b style={{ width: `${(scanSeconds / SCAN_INTERVAL_SECONDS) * 100}%` }} /></i>
+              </div>
               <div><span>DATA NODES</span><strong>{all.length.toString().padStart(2, "0")}</strong></div>
               <div><span>ANOMALIES</span><strong>{issues.toString().padStart(2, "0")}</strong></div>
             </div>
