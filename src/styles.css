@@ -76,6 +76,7 @@ body::before { content: ""; position: fixed; inset: 0; z-index: -1; pointer-even
 .content-panel a svg { display:inline; width:.7rem; }
 .panel-label { margin-bottom:.4rem; color:#64748b; font-size:.58rem; font-weight:750; letter-spacing:.1em; }
 .price { margin-top:.25rem; font-size:1.5rem; font-weight:700; letter-spacing:-.04em; }
+.gbp-price { margin-top:.2rem; color:#7dd3fc; font-size:.72rem; font-weight:650; }
 .delta { display:flex; align-items:center; gap:.2rem; font-size:.7rem; font-weight:700; }
 .delta svg { width:.9rem; }.delta.down { color:#86efac; }.delta.up { color:#fca5a5; }
 .error-copy { display:flex; gap:.4rem; margin-top:.75rem; color:#fca5a5; font-size:.68rem; line-height:1.4; }
