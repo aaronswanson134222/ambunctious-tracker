@@ -537,14 +537,11 @@ async function runChecks() {
   for (const row of (experienceTrackers ?? []) as RobloxExperienceRow[]) {
     results.roblox_checked++;
     try {
-      if (typeof robloxOpenCloudKey !== "string" || !robloxOpenCloudKey.trim()) {
-        throw new Error("Connect your Roblox Open Cloud key first");
-      }
       const products = await checkRobloxExperienceProducts(
         Number(row.universe_id),
         Number(row.place_id),
         Number(row.lookback_days),
-        robloxOpenCloudKey,
+        typeof robloxOpenCloudKey === "string" ? robloxOpenCloudKey : null,
       );
       const known = new Set(
         Array.isArray(row.known_item_keys)
