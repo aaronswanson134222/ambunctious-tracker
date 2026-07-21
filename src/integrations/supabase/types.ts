@@ -14,30 +14,6 @@ export type Database = {
   }
   public: {
     Tables: {
-      tracker_api_releases: {
-        Row: {
-          changes: Json
-          created_at: string
-          notified_at: string
-          title: string
-          version: string
-        }
-        Insert: {
-          changes?: Json
-          created_at?: string
-          notified_at?: string
-          title: string
-          version: string
-        }
-        Update: {
-          changes?: Json
-          created_at?: string
-          notified_at?: string
-          title?: string
-          version?: string
-        }
-        Relationships: []
-      }
       price_history: {
         Row: {
           checked_at: string
@@ -112,6 +88,42 @@ export type Database = {
         }
         Relationships: []
       }
+      tracked_websites: {
+        Row: {
+          created_at: string
+          id: string
+          label: string
+          last_checked_at: string | null
+          last_error: string | null
+          last_item_title: string | null
+          last_item_url: string | null
+          updated_at: string
+          url: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          label: string
+          last_checked_at?: string | null
+          last_error?: string | null
+          last_item_title?: string | null
+          last_item_url?: string | null
+          updated_at?: string
+          url: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          label?: string
+          last_checked_at?: string | null
+          last_error?: string | null
+          last_item_title?: string | null
+          last_item_url?: string | null
+          updated_at?: string
+          url?: string
+        }
+        Relationships: []
+      }
       tracked_x_accounts: {
         Row: {
           created_at: string
@@ -145,12 +157,91 @@ export type Database = {
         }
         Relationships: []
       }
+      tracker_api_releases: {
+        Row: {
+          changes: Json
+          created_at: string
+          notified_at: string
+          title: string
+          version: string
+        }
+        Insert: {
+          changes?: Json
+          created_at?: string
+          notified_at?: string
+          title: string
+          version: string
+        }
+        Update: {
+          changes?: Json
+          created_at?: string
+          notified_at?: string
+          title?: string
+          version?: string
+        }
+        Relationships: []
+      }
+      tracker_notification_events: {
+        Row: {
+          created_at: string
+          fingerprint: string
+          id: string
+          sent_at: string | null
+          source_id: string
+          source_type: string
+        }
+        Insert: {
+          created_at?: string
+          fingerprint: string
+          id?: string
+          sent_at?: string | null
+          source_id: string
+          source_type: string
+        }
+        Update: {
+          created_at?: string
+          fingerprint?: string
+          id?: string
+          sent_at?: string | null
+          source_id?: string
+          source_type?: string
+        }
+        Relationships: []
+      }
+      tracker_run_state: {
+        Row: {
+          last_started_at: string
+          lock_until: string
+          singleton: boolean
+        }
+        Insert: {
+          last_started_at?: string
+          lock_until?: string
+          singleton?: boolean
+        }
+        Update: {
+          last_started_at?: string
+          lock_until?: string
+          singleton?: boolean
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      acquire_tracker_run_lock: { Args: never; Returns: boolean }
+      is_tracker_owner: { Args: never; Returns: boolean }
+      release_tracker_run_lock: { Args: never; Returns: boolean }
+      verify_tracker_cron_secret: {
+        Args: { candidate: string }
+        Returns: boolean
+      }
+      verify_tracker_owner_email: {
+        Args: { candidate: string }
+        Returns: boolean
+      }
     }
     Enums: {
       [_ in never]: never
