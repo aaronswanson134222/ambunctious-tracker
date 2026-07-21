@@ -307,7 +307,7 @@ async function runChecks() {
     }
   }
 
-  // --- BIG Games website ---
+  // --- BIG Games website (navigation/category links are excluded by the parser) ---
   const websiteDb = supabaseAdmin as unknown as {
     from: (table: string) => any;
   };
@@ -330,8 +330,14 @@ async function runChecks() {
             await sendDiscord({
               embeds: [
                 {
+                  author: {
+                    name: "BIG Games // Website update",
+                    icon_url: "https://www.biggames.io/favicon.ico",
+                    url: "https://www.biggames.io/post",
+                  },
                   title: `New BIG Games update: ${update.title}`,
                   url: update.itemUrl,
+                  thumbnail: { url: "https://www.biggames.io/favicon.ico" },
                   description: update.summary?.slice(0, 500) ?? "A new developer blog has been published.",
                   color: 0xf4c542,
                   timestamp: new Date().toISOString(),
