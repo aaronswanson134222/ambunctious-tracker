@@ -251,7 +251,7 @@ export async function checkBigGamesUpdates(url: string): Promise<WebsiteUpdateRe
 
   const html = await fetchPublicPage(new URL("https://www.biggames.io/post"), "BIG Games");
   const links = [...html.matchAll(
-    /<a\b[^>]*href=["'](\/post\/[^"'?#]+)["'][^>]*>([\s\S]*?)<\/a>/gi,
+    /<a\b[^>]*href=["'](\/post\/(?!category\/)[^"'?#]+)["'][^>]*>([\s\S]*?)<\/a>/gi,
   )];
   const latest = links.find((match) => {
     const text = visibleText(match[2]);
