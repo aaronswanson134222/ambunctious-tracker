@@ -190,7 +190,7 @@ function Index() {
             <h2>CONTROL<br /><span>THE SIGNAL.</span></h2>
             <p>Precision monitoring for X activity and market movement. Five-minute scans. Instant Discord transmission.</p>
             <div className="hero-status">
-              <div className="countdown-node">
+              <div className="countdown-node" data-scan-interval="300">
                 <span>NEXT NETWORK SCAN</span>
                 <strong aria-live="off">{formatScanCountdown(scanSeconds)}</strong>
                 <i aria-hidden="true"><b style={{ width: `${(scanSeconds / SCAN_INTERVAL_SECONDS) * 100}%` }} /></i>
