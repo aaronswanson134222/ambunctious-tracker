@@ -14,6 +14,30 @@ export type Database = {
   }
   public: {
     Tables: {
+      tracker_api_releases: {
+        Row: {
+          changes: Json
+          created_at: string
+          notified_at: string
+          title: string
+          version: string
+        }
+        Insert: {
+          changes?: Json
+          created_at?: string
+          notified_at?: string
+          title: string
+          version: string
+        }
+        Update: {
+          changes?: Json
+          created_at?: string
+          notified_at?: string
+          title?: string
+          version?: string
+        }
+        Relationships: []
+      }
       price_history: {
         Row: {
           checked_at: string
