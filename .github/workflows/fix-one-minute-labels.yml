@@ -1,0 +1,34 @@
+name: Fix one-minute timer labels
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/fix-one-minute-labels.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Update stale timer labels
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('src/routes/index.tsx')
+          s = p.read_text()
+          s = s.replace('SECURE FIVE-MINUTE CYCLE', 'SECURE ONE-MINUTE CYCLE')
+          s = s.replace('<strong>05 MIN</strong>', '<strong>60 SEC</strong>')
+          s = s.replace('Every 5 minutes · Complete pass inventory · Discord alerts for new uploads', 'Every 60 seconds · Complete pass inventory · Discord alerts for new uploads')
+          p.write_text(s)
+          PY
+      - name: Commit changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/routes/index.tsx
+          git diff --cached --quiet || git commit -m "Fix remaining one-minute timer labels"
+          git push
