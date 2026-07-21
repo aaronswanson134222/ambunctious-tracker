@@ -399,6 +399,7 @@ function robloxDate(row: Record<string, unknown>) {
     row.createdAt ??
     row.created ??
     row.creationDate ??
+    row.Created ??
     row.itemCreatedUtc;
   if (typeof value !== "string" || !Number.isFinite(Date.parse(value))) return null;
   return new Date(value).toISOString();
@@ -660,41 +661,46 @@ export async function checkRobloxExperienceProducts(
     });
   }
 
-  // Roblox does not provide a public list of another creator's developer
-  // products. Include them only when the saved key is authorised for this
-  // specific universe; a 401/403 is an expected limitation and is not a scan
-  // failure for third-party experiences.
-  const apiKey = openCloudApiKey?.trim();
-  if (apiKey) {
+  // Roblox's public V2 list exposes developer products for any public
+  // universe. Fetch multiple pages so larger experiences are fully baselined.
+  void openCloudApiKey;
+  let nextPageCursor = "";
+  for (let page = 0; page < 5; page++) {
     const developerProductUrl = new URL(
-      `https://apis.roblox.com/developer-products/v2/universes/${universeId}/developer-products/creator`,
+      `https://apis.roblox.com/developer-products/v2/universes/${universeId}/developerproducts`,
     );
-    developerProductUrl.searchParams.set("maxPageSize", "100");
-    let developerResponse: unknown = null;
-    try {
-      developerResponse = await fetchRobloxJson(developerProductUrl, apiKey);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      if (!/HTTP 401|HTTP 403|HTTP 404/.test(message)) throw error;
+    developerProductUrl.searchParams.set("limit", "100");
+    if (nextPageCursor) {
+      developerProductUrl.searchParams.set("cursor", nextPageCursor);
     }
+    const developerResponse = await fetchRobloxJson(developerProductUrl) as Record<string, unknown>;
     for (const row of rowsFromRobloxResponse(
       developerResponse,
       ["developerProducts", "data"],
     )) {
-      const id = Number(row.id ?? row.productId);
+      const id = Number(
+        row.DeveloperProductId ??
+        row.TargetId ??
+        row.id ??
+        row.productId,
+      );
       if (!Number.isSafeInteger(id) || id <= 0) continue;
       const createdAt = robloxDate(row);
-        products.push({
+      const rawName = row.Name ?? row.displayName ?? row.name;
+      products.push({
         key: `developer_product:${universeId}:${id}`,
         id,
         kind: "developer_product",
-        name: typeof row.name === "string"
-          ? row.name.slice(0, 120)
+        name: typeof rawName === "string"
+          ? rawName.slice(0, 120)
           : `Developer product ${id}`,
         url: `https://www.roblox.com/games/${placeId}`,
         createdAt,
       });
     }
+    const cursor = developerResponse.nextPageCursor;
+    if (typeof cursor !== "string" || !cursor) break;
+    nextPageCursor = cursor;
   }
 
   return products.sort((a, b) => {
