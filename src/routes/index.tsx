@@ -36,6 +36,7 @@ type Product = {
 };
 type RobloxTracker = {
   id: string; entity_type: "user" | "group"; entity_id: number; label: string;
+  scan_types: string[]; lookback_days: number;
   last_checked_at: string | null; last_error: string | null;
 };
 type PricePoint = { checked_at: string; price: number; price_gbp: number | null };
@@ -85,6 +86,11 @@ function Index() {
   const [robloxType, setRobloxType] = useState<"user" | "group">("user");
   const [robloxTarget, setRobloxTarget] = useState("");
   const [robloxLabel, setRobloxLabel] = useState("");
+  const [robloxScanTypes, setRobloxScanTypes] = useState<string[]>(["catalog", "experience"]);
+  const [robloxLookback, setRobloxLookback] = useState(30);
+  const [robloxApiKey, setRobloxApiKey] = useState("");
+  const [robloxKeyConfigured, setRobloxKeyConfigured] = useState(false);
+  const [savingRobloxKey, setSavingRobloxKey] = useState(false);
   const [running, setRunning] = useState(false);
   const [scanSeconds, setScanSeconds] = useState(SCAN_INTERVAL_SECONDS);
   const [loading, setLoading] = useState(true);
@@ -121,6 +127,49 @@ function Index() {
     setLoading(false);
   }
 
+  async function loadRobloxKeyStatus() {
+    const { data } = await supabase.auth.getSession();
+    const token = data.session?.access_token;
+    if (!token) return;
+    const response = await fetch("/api/roblox/key", {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (response.ok) {
+      const body = await response.json() as { configured?: boolean };
+      setRobloxKeyConfigured(body.configured === true);
+    }
+  }
+
+  async function saveRobloxKey() {
+    const key = robloxApiKey.trim();
+    if (key.length < 20 || /\s/.test(key)) {
+      return toast.error("Paste a valid Roblox Open Cloud API key.");
+    }
+    const { data } = await supabase.auth.getSession();
+    const token = data.session?.access_token;
+    if (!token) return toast.error("Your session expired. Sign in again.");
+    setSavingRobloxKey(true);
+    try {
+      const response = await fetch("/api/roblox/key", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ key }),
+      });
+      const body = await response.json() as { configured?: boolean; error?: string };
+      if (!response.ok || !body.configured) throw new Error(body.error ?? "Could not save key");
+      setRobloxApiKey("");
+      setRobloxKeyConfigured(true);
+      toast.success("Roblox Open Cloud connected securely.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not save Roblox key.");
+    } finally {
+      setSavingRobloxKey(false);
+    }
+  }
+
   useEffect(() => {
     let active = true;
     void supabase.auth.getSession().then(({ data }) => {
@@ -139,7 +188,10 @@ function Index() {
   }, []);
 
   useEffect(() => {
-    if (user) void loadAll(true);
+    if (user) {
+      void loadAll(true);
+      void loadRobloxKeyStatus();
+    }
     else {
       setAccounts([]);
       setProducts([]);
@@ -224,16 +276,45 @@ function Index() {
       return toast.error("Enter a Roblox profile/group URL or numeric ID.");
     }
     if (!label || label.length > 120) return toast.error("Enter a short tracker label.");
+    if (!robloxScanTypes.length) return toast.error("Select at least one Roblox scan type.");
     const { error } = await supabase.from("tracked_roblox_entities").insert({
       entity_type: robloxType,
       entity_id: entityId,
       label,
+      scan_types: robloxScanTypes,
+      lookback_days: robloxLookback,
+      baselined_scan_types: [],
     });
     if (error) toast.error(error.message);
     else {
       toast.success(`Now tracking Roblox ${robloxType}: ${label}`);
       setRobloxTarget("");
       setRobloxLabel("");
+      await loadAll();
+    }
+  }
+
+  function toggleNewRobloxScanType(scanType: string) {
+    setRobloxScanTypes((current) =>
+      current.includes(scanType)
+        ? current.filter((value) => value !== scanType)
+        : [...current, scanType],
+    );
+  }
+
+  async function updateRobloxSettings(
+    tracker: RobloxTracker,
+    scanTypes: string[],
+    lookbackDays: number,
+  ) {
+    if (!scanTypes.length) return toast.error("Keep at least one scan type enabled.");
+    const { error } = await supabase
+      .from("tracked_roblox_entities")
+      .update({ scan_types: scanTypes, lookback_days: lookbackDays })
+      .eq("id", tracker.id);
+    if (error) toast.error(error.message);
+    else {
+      toast.success("Roblox scan settings updated.");
       await loadAll();
     }
   }
@@ -430,14 +511,40 @@ function Index() {
 
             <TabsContent value="roblox" className="space-y-4">
               <Card className="add-card items-start">
+                <div className="add-copy"><div className="add-icon"><LockKeyhole /></div><div><h3>Roblox Open Cloud</h3><p>{robloxKeyConfigured ? "Connected securely — monetization scans enabled." : "Connect a free read-only key for game passes and developer products."}</p></div></div>
+                <div className="flex w-full gap-2 sm:max-w-xl">
+                  <Input type="password" autoComplete="off" aria-label="Roblox Open Cloud API key" placeholder={robloxKeyConfigured ? "REPLACE SAVED KEY" : "PASTE OPEN CLOUD API KEY"} value={robloxApiKey} onChange={(e) => setRobloxApiKey(e.target.value)} className="h-11 rounded-xl" />
+                  <Button onClick={saveRobloxKey} disabled={savingRobloxKey || !robloxApiKey.trim()} className="h-11 rounded-xl">{savingRobloxKey ? "Saving…" : robloxKeyConfigured ? "Replace" : "Connect"}</Button>
+                </div>
+              </Card>
+              <Card className="add-card items-start">
                 <div className="add-copy"><div className="add-icon"><Gamepad2 /></div><div><h3>Add a Roblox creator</h3><p>Watch public catalog uploads and experiences.</p></div></div>
-                <div className="grid w-full gap-2 sm:max-w-2xl sm:grid-cols-[130px_1fr_1fr_auto]">
-                  <select aria-label="Roblox creator type" value={robloxType} onChange={(e) => setRobloxType(e.target.value as "user" | "group")} className="command-input h-11 rounded-xl px-3">
-                    <option value="user">Profile</option><option value="group">Group</option>
-                  </select>
-                  <Input aria-label="Roblox URL or ID" placeholder="Profile/group URL or ID" value={robloxTarget} onChange={(e) => setRobloxTarget(e.target.value)} className="h-11 rounded-xl" />
-                  <Input aria-label="Roblox tracker label" placeholder="Short label" value={robloxLabel} onChange={(e) => setRobloxLabel(e.target.value)} onKeyDown={(e) => e.key === "Enter" && void addRobloxTracker()} className="h-11 rounded-xl" />
-                  <Button onClick={addRobloxTracker} className="h-11 rounded-xl">Add</Button>
+                <div className="w-full space-y-3 sm:max-w-3xl">
+                  <div className="grid gap-2 sm:grid-cols-[130px_1fr_1fr_150px_auto]">
+                    <select aria-label="Roblox creator type" value={robloxType} onChange={(e) => setRobloxType(e.target.value as "user" | "group")} className="command-input h-11 rounded-xl px-3">
+                      <option value="user">Profile</option><option value="group">Group</option>
+                    </select>
+                    <Input aria-label="Roblox URL or ID" placeholder="Profile/group URL or ID" value={robloxTarget} onChange={(e) => setRobloxTarget(e.target.value)} className="h-11 rounded-xl" />
+                    <Input aria-label="Roblox tracker label" placeholder="Short label" value={robloxLabel} onChange={(e) => setRobloxLabel(e.target.value)} onKeyDown={(e) => e.key === "Enter" && void addRobloxTracker()} className="h-11 rounded-xl" />
+                    <select aria-label="Roblox lookback timeframe" value={robloxLookback} onChange={(e) => setRobloxLookback(Number(e.target.value))} className="command-input h-11 rounded-xl px-3">
+                      <option value={7}>Past week</option><option value={30}>Past month</option><option value={90}>Past 3 months</option><option value={365}>Past year</option>
+                    </select>
+                    <Button onClick={addRobloxTracker} className="h-11 rounded-xl">Add</Button>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {[
+                      ["catalog", "Catalog uploads"],
+                      ["experience", "Experiences"],
+                      ["game_pass", "Game passes"],
+                      ["developer_product", "Developer products"],
+                    ].map(([value, label]) => (
+                      <label key={value} className="status-pill status-waiting cursor-pointer">
+                        <input type="checkbox" checked={robloxScanTypes.includes(value)} onChange={() => toggleNewRobloxScanType(value)} />
+                        {label}
+                      </label>
+                    ))}
+                  </div>
+                  {(robloxScanTypes.includes("game_pass") || robloxScanTypes.includes("developer_product")) && <p className="text-xs text-muted-foreground">Monetization scans use a free server-side Roblox Open Cloud key; existing items establish a silent baseline.</p>}
                 </div>
               </Card>
               {!filteredRoblox.length ? <Empty icon={<Gamepad2 />} title={query ? "No matching Roblox trackers" : "No Roblox creators yet"} copy={query ? "Try a different search." : "Add a public profile or group to monitor new creations."} /> :
@@ -448,7 +555,32 @@ function Index() {
                       <div className="flex min-w-0 items-center gap-3"><div className="tracker-avatar"><Gamepad2 /></div><div className="min-w-0"><a className="tracker-title" href={href} target="_blank" rel="noreferrer">{r.label} <ExternalLink /></a><p className="tracker-meta">{r.entity_type.toUpperCase()} #{r.entity_id} · Checked {relativeTime(r.last_checked_at)}</p></div></div>
                       <StatusPill error={r.last_error} checked={r.last_checked_at} />
                     </div>
-                    <div className="content-panel"><p className="panel-label">MONITORING</p><p className="text-sm text-muted-foreground">New public catalog products and experiences. First scan creates a silent baseline.</p></div>
+                    <div className="content-panel space-y-3">
+                      <p className="panel-label">SCAN SETTINGS</p>
+                      <div className="flex flex-wrap gap-2">
+                        {[
+                          ["catalog", "Catalog"],
+                          ["experience", "Experiences"],
+                          ["game_pass", "Game passes"],
+                          ["developer_product", "Developer products"],
+                        ].map(([value, label]) => {
+                          const active = (r.scan_types ?? []).includes(value);
+                          return <label key={value} className={`status-pill ${active ? "status-healthy" : "status-waiting"} cursor-pointer`}>
+                            <input type="checkbox" checked={active} onChange={() => {
+                              const next = active ? r.scan_types.filter((item) => item !== value) : [...r.scan_types, value];
+                              void updateRobloxSettings(r, next, r.lookback_days);
+                            }} />
+                            {label}
+                          </label>;
+                        })}
+                      </div>
+                      <label className="flex items-center gap-2 text-sm text-muted-foreground">Created within
+                        <select value={r.lookback_days ?? 30} onChange={(e) => void updateRobloxSettings(r, r.scan_types, Number(e.target.value))} className="command-input h-9 rounded-lg px-2">
+                          <option value={7}>1 week</option><option value={30}>1 month</option><option value={90}>3 months</option><option value={365}>1 year</option>
+                        </select>
+                      </label>
+                      <p className="text-xs text-muted-foreground">Newly enabled types create a silent baseline before alerts begin.</p>
+                    </div>
                     {r.last_error && <p className="error-copy"><AlertTriangle /> {r.last_error}</p>}
                     <div className="card-footer"><span>Discord alerts enabled</span><Button variant="ghost" size="sm" onClick={() => void remove("roblox", r.id, r.label)}><Trash2 /> Remove</Button></div>
                   </Card>;

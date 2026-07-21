@@ -23,6 +23,9 @@ type RobloxRow = {
   entity_id: number;
   label: string;
   known_item_keys: unknown;
+  scan_types: unknown;
+  baselined_scan_types: unknown;
+  lookback_days: number;
 };
 
 type WebsiteRow = {
@@ -324,20 +327,43 @@ async function runChecks() {
   const robloxDb = supabaseAdmin as unknown as { from: (table: string) => any };
   const { data: robloxEntities, error: robloxListError } = await robloxDb
     .from("tracked_roblox_entities")
-    .select("id, entity_type, entity_id, label, known_item_keys");
+    .select("id, entity_type, entity_id, label, known_item_keys, scan_types, baselined_scan_types, lookback_days");
   if (robloxListError) results.errors.push(`roblox list: ${robloxListError.message}`);
+
+  const { data: robloxOpenCloudKey } = await (
+    robloxDb.from
+      ? (supabaseAdmin as any).rpc("get_roblox_open_cloud_key")
+      : Promise.resolve({ data: null })
+  );
 
   for (const row of (robloxEntities ?? []) as RobloxRow[]) {
     results.roblox_checked++;
     try {
-      const creations = await checkRobloxCreations(row.entity_type, Number(row.entity_id));
+      const scanTypes = Array.isArray(row.scan_types)
+        ? row.scan_types.filter((value): value is "catalog" | "experience" | "game_pass" | "developer_product" =>
+            ["catalog", "experience", "game_pass", "developer_product"].includes(String(value)),
+          )
+        : ["catalog", "experience"];
+      const baselinedTypes = new Set(
+        Array.isArray(row.baselined_scan_types)
+          ? row.baselined_scan_types.filter((value): value is string => typeof value === "string")
+          : [],
+      );
+      const creations = await checkRobloxCreations(
+        row.entity_type,
+        Number(row.entity_id),
+        scanTypes,
+        Number(row.lookback_days),
+        typeof robloxOpenCloudKey === "string" ? robloxOpenCloudKey : null,
+      );
       const known = new Set(
         Array.isArray(row.known_item_keys)
           ? row.known_item_keys.filter((value): value is string => typeof value === "string")
           : [],
       );
-      const isBaseline = known.size === 0;
-      const fresh = isBaseline ? [] : creations.filter((item) => !known.has(item.key)).slice(0, 10);
+      const fresh = creations
+        .filter((item) => baselinedTypes.has(item.kind) && !known.has(item.key))
+        .slice(0, 10);
 
       for (const item of fresh) {
         const reservation = await reserveNotification(
@@ -351,9 +377,9 @@ async function runChecks() {
                 name: `Roblox ${row.entity_type}: ${row.label}`,
                 icon_url: "https://www.roblox.com/favicon.ico",
               },
-              title: `New ${item.kind}: ${item.name}`,
+              title: `New ${item.kind.replaceAll("_", " ")}: ${item.name}`,
               url: item.url,
-              description: `A new public ${item.kind} was detected on Roblox.`,
+              description: `A new public ${item.kind.replaceAll("_", " ")} was detected on Roblox.`,
               thumbnail: { url: "https://www.roblox.com/favicon.ico" },
               color: 0x00a2ff,
               timestamp: new Date().toISOString(),
@@ -374,6 +400,7 @@ async function runChecks() {
       ])].slice(0, 500);
       await robloxDb.from("tracked_roblox_entities").update({
         known_item_keys: mergedKeys,
+        baselined_scan_types: [...new Set([...baselinedTypes, ...scanTypes])],
         last_checked_at: new Date().toISOString(),
         last_error: null,
       }).eq("id", row.id);

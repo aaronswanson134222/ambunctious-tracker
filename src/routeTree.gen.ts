@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ApiPublicRunChecksRouteImport } from './routes/api/public/run-checks'
 import { Route as ApiAuthPinRouteImport } from './routes/api/auth/pin'
+import { Route as ApiRobloxKeyRouteImport } from './routes/api/roblox/key'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -23,6 +24,11 @@ const ApiAuthPinRoute = ApiAuthPinRouteImport.update({
   path: '/api/auth/pin',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiRobloxKeyRoute = ApiRobloxKeyRouteImport.update({
+  id: '/api/roblox/key',
+  path: '/api/roblox/key',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicRunChecksRoute = ApiPublicRunChecksRouteImport.update({
   id: '/api/public/run-checks',
   path: '/api/public/run-checks',
@@ -32,11 +38,14 @@ const ApiPublicRunChecksRoute = ApiPublicRunChecksRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/api/auth/pin': typeof ApiAuthPinRoute
+  '/api/roblox/key': typeof ApiRobloxKeyRoute
+  '/api/roblox/key': typeof ApiRobloxKeyRoute
   '/api/public/run-checks': typeof ApiPublicRunChecksRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/api/auth/pin': typeof ApiAuthPinRoute
+  '/api/roblox/key': typeof ApiRobloxKeyRoute
   '/api/public/run-checks': typeof ApiPublicRunChecksRoute
 }
 export interface FileRoutesById {
@@ -47,15 +56,16 @@ export interface FileRoutesById {
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/api/auth/pin' | '/api/public/run-checks'
+  fullPaths: '/' | '/api/auth/pin' | '/api/roblox/key' | '/api/public/run-checks'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/api/auth/pin' | '/api/public/run-checks'
-  id: '__root__' | '/' | '/api/auth/pin' | '/api/public/run-checks'
+  to: '/' | '/api/auth/pin' | '/api/roblox/key' | '/api/public/run-checks'
+  id: '__root__' | '/' | '/api/auth/pin' | '/api/roblox/key' | '/api/public/run-checks'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ApiAuthPinRoute: typeof ApiAuthPinRoute
+  ApiRobloxKeyRoute: typeof ApiRobloxKeyRoute
   ApiPublicRunChecksRoute: typeof ApiPublicRunChecksRoute
 }
 
@@ -75,6 +85,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAuthPinRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/roblox/key': {
+      id: '/api/roblox/key'
+      path: '/api/roblox/key'
+      fullPath: '/api/roblox/key'
+      preLoaderRoute: typeof ApiRobloxKeyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/run-checks': {
       id: '/api/public/run-checks'
       path: '/api/public/run-checks'
@@ -88,6 +105,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ApiAuthPinRoute: ApiAuthPinRoute,
+  ApiRobloxKeyRoute: ApiRobloxKeyRoute,
   ApiPublicRunChecksRoute: ApiPublicRunChecksRoute,
 }
 export const routeTree = rootRouteImport
