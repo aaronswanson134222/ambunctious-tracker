@@ -733,12 +733,9 @@ function Index() {
             <TabsContent value="experiences" className="space-y-4">
               <Card className="add-card items-start">
                 <div className="add-copy"><div className="add-icon"><Gamepad2 /></div><div><h3>Track an experience</h3><p>Paste a game URL or place ID to watch all game passes and developer products.</p></div></div>
-                <div className="grid w-full gap-2 sm:max-w-3xl sm:grid-cols-[1fr_1fr_150px_auto]">
+                <div className="grid w-full gap-2 sm:max-w-3xl sm:grid-cols-[1fr_1fr_auto]">
                   <Input aria-label="Roblox game URL or place ID" placeholder="Game URL or place ID" value={experienceTarget} onChange={(e) => setExperienceTarget(e.target.value)} className="h-11 rounded-xl" />
                   <Input aria-label="Experience label" placeholder="Experience label" value={experienceLabel} onChange={(e) => setExperienceLabel(e.target.value)} onKeyDown={(e) => e.key === "Enter" && void addExperienceTracker()} className="h-11 rounded-xl" />
-                  <select aria-label="Experience product timeframe" value={experienceLookback} onChange={(e) => setExperienceLookback(Number(e.target.value))} className="command-input h-11 rounded-xl px-3">
-                    <option value={7}>Past week</option><option value={30}>Past month</option><option value={90}>Past 3 months</option><option value={365}>Past year</option>
-                  </select>
                   <Button onClick={addExperienceTracker} disabled={addingExperience} className="h-11 rounded-xl">
                     {addingExperience ? <LoaderCircle className="animate-spin" /> : <Plus />} {addingExperience ? "Adding…" : "Track"}
                   </Button>
@@ -767,7 +764,7 @@ function Index() {
                     </div>
                     {experience.last_error && <p className="error-copy"><AlertTriangle /> {experience.last_error}</p>}
                     <div className="card-footer">
-                      <span>Every 5 minutes · {experience.lookback_days}-day window · Discord alerts for new uploads</span>
+                      <span>Every 5 minutes · Complete pass inventory · Discord alerts for new uploads</span>
                       <div className="flex gap-2">
                         <Button variant="outline" size="sm" onClick={() => void runNow()} disabled={running}><RefreshCw /> Refresh</Button>
                         <Button variant="ghost" size="sm" onClick={() => void remove("experience", experience.id, experience.label)}><Trash2 /> Remove</Button>
