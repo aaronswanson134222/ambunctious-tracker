@@ -157,6 +157,42 @@ export type Database = {
         }
         Relationships: []
       }
+      tracked_roblox_entities: {
+        Row: {
+          created_at: string
+          entity_id: number
+          entity_type: string
+          id: string
+          known_item_keys: Json
+          label: string
+          last_checked_at: string | null
+          last_error: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          entity_id: number
+          entity_type: string
+          id?: string
+          known_item_keys?: Json
+          label: string
+          last_checked_at?: string | null
+          last_error?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          entity_id?: number
+          entity_type?: string
+          id?: string
+          known_item_keys?: Json
+          label?: string
+          last_checked_at?: string | null
+          last_error?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       tracker_api_releases: {
         Row: {
           changes: Json
