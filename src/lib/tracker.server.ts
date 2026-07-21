@@ -425,6 +425,7 @@ export async function checkRobloxCreations(
   entityId: number,
   scanTypes: RobloxScanType[],
   lookbackDays: number,
+  openCloudApiKey?: string | null,
 ): Promise<RobloxCreation[]> {
   if (!Number.isSafeInteger(entityId) || entityId <= 0) {
     throw new Error("Invalid Roblox user or group ID");
@@ -523,7 +524,7 @@ export async function checkRobloxCreations(
   ].filter((value): value is "game_pass" | "developer_product" => value !== null);
 
   if (monetizationTypes.length) {
-    const apiKey = process.env.ROBLOX_OPEN_CLOUD_API_KEY;
+    const apiKey = openCloudApiKey?.trim();
     if (!apiKey) {
       throw new Error(
         "Roblox monetization scans require ROBLOX_OPEN_CLOUD_API_KEY with game-pass:read and developer-product:read scopes",
