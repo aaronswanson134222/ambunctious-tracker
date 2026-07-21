@@ -66,7 +66,7 @@ export const Route = createFileRoute("/api/roblox/experiences")({
         }
 
         try {
-          const universeId = await resolveRobloxUniverseId(placeId, apiKey);
+          const universeId = await resolveRobloxUniverseId(placeId);
           const products = await checkRobloxExperienceProducts(
             universeId,
             placeId,
