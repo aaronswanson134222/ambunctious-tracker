@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import {
   Activity, AlertTriangle, ArrowDownRight, ArrowUpRight, CheckCircle2,
-  ExternalLink, Eye, LoaderCircle, LockKeyhole, LogOut, Mail, Plus,
+  ExternalLink, Eye, LoaderCircle, LockKeyhole, LogOut, Plus,
   Gamepad2, RefreshCw, Search, ShoppingBag, Trash2, Twitter,
 } from "lucide-react";
 
@@ -92,8 +92,8 @@ function Index() {
   const [history, setHistory] = useState<Record<string, PricePoint[]>>({});
   const [user, setUser] = useState<User | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
-  const [loginEmail, setLoginEmail] = useState("");
-  const [sendingLink, setSendingLink] = useState(false);
+  const [loginPin, setLoginPin] = useState("");
+  const [signingIn, setSigningIn] = useState(false);
 
   async function loadAll(showLoading = false) {
     if (showLoading) setLoading(true);
@@ -156,20 +156,36 @@ function Index() {
     return () => window.clearInterval(timer);
   }, []);
 
-  async function sendLoginLink() {
-    const email = loginEmail.trim().toLowerCase();
-    if (!email || !email.includes("@")) return toast.error("Enter your owner email.");
-    setSendingLink(true);
-    const { error } = await supabase.auth.signInWithOtp({
-      email,
-      options: {
-        emailRedirectTo: window.location.origin,
-        shouldCreateUser: false,
-      },
-    });
-    setSendingLink(false);
-    if (error) toast.error("Couldn’t send the secure sign-in link.");
-    else toast.success("Secure sign-in link sent. Check your email.");
+  async function signInWithPin() {
+    const pin = loginPin.trim();
+    if (!/^\d{6}$/.test(pin)) return toast.error("Enter your six-digit owner PIN.");
+    setSigningIn(true);
+    try {
+      const response = await fetch("/api/auth/pin", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pin }),
+      });
+      const body = await response.json() as {
+        access_token?: string;
+        refresh_token?: string;
+        error?: string;
+      };
+      if (!response.ok || !body.access_token || !body.refresh_token) {
+        throw new Error(body.error ?? "Invalid PIN");
+      }
+      const { error } = await supabase.auth.setSession({
+        access_token: body.access_token,
+        refresh_token: body.refresh_token,
+      });
+      if (error) throw error;
+      setLoginPin("");
+      toast.success("Owner access granted.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Sign-in failed.");
+    } finally {
+      setSigningIn(false);
+    }
   }
 
   async function signOut() {
@@ -267,27 +283,30 @@ function Index() {
           <div className="auth-lock"><LockKeyhole /></div>
           <p className="eyebrow"><span /> RESTRICTED SYSTEM</p>
           <h1>OWNER<br /><strong>ACCESS.</strong></h1>
-          <p>Ambunctious Tracker is private. Request a one-time secure link using the authorised owner email.</p>
+          <p>Ambunctious Tracker is private. Enter the six-digit owner PIN. Access is rate-limited and securely verified by the server.</p>
           <div className="auth-form">
             <div className="relative">
-              <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={16} />
+              <LockKeyhole className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={16} />
               <Input
-                type="email"
-                autoComplete="email"
-                aria-label="Owner email"
-                placeholder="OWNER EMAIL"
-                value={loginEmail}
-                onChange={(event) => setLoginEmail(event.target.value)}
-                onKeyDown={(event) => event.key === "Enter" && void sendLoginLink()}
-                className="command-input h-12 rounded-none pl-10"
+                type="password"
+                inputMode="numeric"
+                pattern="[0-9]*"
+                maxLength={6}
+                autoComplete="current-password"
+                aria-label="Owner PIN"
+                placeholder="6-DIGIT PIN"
+                value={loginPin}
+                onChange={(event) => setLoginPin(event.target.value.replace(/\D/g, "").slice(0, 6))}
+                onKeyDown={(event) => event.key === "Enter" && void signInWithPin()}
+                className="command-input h-12 rounded-none pl-10 tracking-[0.4em]"
               />
             </div>
-            <Button onClick={sendLoginLink} disabled={sendingLink} className="metal-button h-12 rounded-none">
-              {sendingLink ? <LoaderCircle className="animate-spin" /> : <LockKeyhole />}
-              {sendingLink ? "Sending…" : "Send secure link"}
+            <Button onClick={signInWithPin} disabled={signingIn} className="metal-button h-12 rounded-none">
+              {signingIn ? <LoaderCircle className="animate-spin" /> : <LockKeyhole />}
+              {signingIn ? "Verifying…" : "Unlock tracker"}
             </Button>
           </div>
-          <small>NO PASSWORD IS STORED // LINKS EXPIRE AUTOMATICALLY</small>
+          <small>SERVER-VERIFIED // FIVE ATTEMPTS PER 15 MINUTES</small>
         </div>
       </main>
     );
