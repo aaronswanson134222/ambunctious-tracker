@@ -1,0 +1,51 @@
+name: One-time 60-second timer sync
+
+on:
+  push:
+    paths:
+      - .github/workflows/one-time-sync-60-second-timer.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  update-timer:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Update tracker timer copy
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('src/routes/index.tsx')
+          text = path.read_text()
+          replacements = {
+              'const SCAN_INTERVAL_SECONDS = 5 * 60;': 'const SCAN_INTERVAL_SECONDS = 60;',
+              'Five-minute scans.': 'One-minute scans.',
+              'Checked every 5 minutes': 'Checked every 60 seconds',
+          }
+          missing = [old for old in replacements if old not in text]
+          if missing:
+              raise SystemExit(f'Expected timer text not found: {missing}')
+          for old, new in replacements.items():
+              text = text.replace(old, new)
+          path.write_text(text)
+          PY
+
+      - name: Commit timer update
+        run: |
+          if git diff --quiet; then
+            echo "Timer already updated"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/routes/index.tsx
+          git commit -m "Use 60-second tracker timer"
+          git push origin main
