@@ -3,6 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
 
 import {
+  checkBigGamesUpdates,
   checkProductPrice,
   checkXProfile,
   convertToGBP,
@@ -15,6 +16,13 @@ type XRow = {
   last_post_url: string | null;
 };
 
+type WebsiteRow = {
+  id: string;
+  label: string;
+  url: string;
+  last_item_url: string | null;
+};
+
 type ProductRow = {
   id: string;
   url: string;
@@ -25,14 +33,13 @@ type ProductRow = {
 };
 
 const API_RELEASE = {
-  version: "2026.07.21-free-trackers-1",
-  title: "Free tracking provider update",
+  version: "2026.07.21-deduplicated-alerts-1",
+  title: "Accurate alerting and BIG Games monitor",
   changes: [
-    "Paid Firecrawl checks have been removed",
-    "X accounts now use public embedded timeline data",
-    "Eldorado prices are read directly from public listing pages",
-    "Five-minute scans, owner security and Discord alerts remain active",
-    "No paid scraping credits are required",
+    "X alerts now require a strictly newer numeric post ID",
+    "Price alerts are sent only for actual price drops",
+    "A notification ledger prevents duplicate Discord messages",
+    "BIG Games developer blogs are now monitored automatically",
   ],
 };
 
@@ -86,13 +93,65 @@ async function sendApiReleaseLog(
   }
 }
 
+
+function xStatusId(url: string | null) {
+  const value = url?.match(/\/status\/(\d+)/)?.[1];
+  return value ? BigInt(value) : null;
+}
+
+async function reserveNotification(
+  supabaseAdmin: SupabaseClient<Database>,
+  sourceType: string,
+  sourceId: string,
+  fingerprint: string,
+) {
+  const db = supabaseAdmin as unknown as {
+    from: (table: string) => {
+      insert: (value: Record<string, string>) => Promise<{
+        error: { code?: string; message: string } | null;
+      }>;
+      delete: () => {
+        eq: (column: string, value: string) => {
+          eq: (column: string, value: string) => {
+            eq: (column: string, value: string) => Promise<unknown>;
+          };
+        };
+      };
+      update: (value: Record<string, string>) => {
+        eq: (column: string, value: string) => {
+          eq: (column: string, value: string) => {
+            eq: (column: string, value: string) => Promise<unknown>;
+          };
+        };
+      };
+    };
+  };
+  const { error } = await db.from("tracker_notification_events").insert({
+    source_type: sourceType,
+    source_id: sourceId,
+    fingerprint,
+  });
+  if (!error) return {
+    markSent: () => db.from("tracker_notification_events")
+      .update({ sent_at: new Date().toISOString() })
+      .eq("source_type", sourceType).eq("source_id", sourceId).eq("fingerprint", fingerprint),
+    release: () => db.from("tracker_notification_events")
+      .delete()
+      .eq("source_type", sourceType).eq("source_id", sourceId).eq("fingerprint", fingerprint),
+  };
+  if (error.code === "23505") return null;
+  throw new Error(`Could not reserve notification: ${error.message}`);
+}
+
 async function runChecks() {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const results = {
     x_checked: 0,
     x_new_posts: 0,
     products_checked: 0,
-    price_changes: 0,
+    price_drops: 0,
+    websites_checked: 0,
+    website_updates: 0,
     discord_sent: 0,
     release_notifications: 0,
     errors: [] as string[],
@@ -113,30 +172,45 @@ async function runChecks() {
     results.x_checked++;
     try {
       const { postUrl, postText } = await checkXProfile(row.handle);
-      const isNew = postUrl && postUrl !== row.last_post_url;
-      if (isNew && row.last_post_url !== null) {
-        // Only alert if we had a baseline (skip first-ever check)
-        await sendDiscord({
-          embeds: [
-            {
-              title: `New post from @${row.handle.replace(/^@/, "")}`,
-              url: postUrl,
-              description: postText?.slice(0, 500) ?? "",
-              color: 0x1da1f2,
-              timestamp: new Date().toISOString(),
-            },
-          ],
-        });
-        results.x_new_posts++;
-        results.discord_sent++;
-      } else if (isNew && row.last_post_url === null) {
-        // First observation — record without alerting
+      const candidateId = xStatusId(postUrl);
+      const previousId = xStatusId(row.last_post_url);
+      const isFirstObservation = previousId === null;
+      const isStrictlyNewer =
+        candidateId !== null && previousId !== null && candidateId > previousId;
+
+      if (isStrictlyNewer && postUrl) {
+        const reservation = await reserveNotification(
+          supabaseAdmin, "x_post", row.id, candidateId.toString(),
+        );
+        if (reservation) {
+          try {
+            await sendDiscord({
+              embeds: [
+                {
+                  title: `New post from @${row.handle.replace(/^@/, "")}`,
+                  url: postUrl,
+                  description: postText?.slice(0, 500) ?? "",
+                  color: 0x1da1f2,
+                  timestamp: new Date().toISOString(),
+                },
+              ],
+            });
+            await reservation.markSent();
+            results.x_new_posts++;
+            results.discord_sent++;
+          } catch (error) {
+            await reservation.release();
+            throw error;
+          }
+        }
       }
+
+      const shouldAdvance = isFirstObservation || isStrictlyNewer;
       await supabaseAdmin
         .from("tracked_x_accounts")
         .update({
-          last_post_url: postUrl ?? row.last_post_url,
-          last_post_text: postText,
+          last_post_url: shouldAdvance && postUrl ? postUrl : row.last_post_url,
+          last_post_text: shouldAdvance ? postText : undefined,
           last_checked_at: new Date().toISOString(),
           last_error: null,
         })
@@ -168,30 +242,41 @@ async function runChecks() {
       const effectiveCurrency = currency ?? row.currency;
       const priceGbp = await convertToGBP(price, effectiveCurrency);
       const prev = row.last_price;
-      const changed = prev != null && Number(prev) !== price;
-      if (changed) {
+      const dropped = prev != null && price < Number(prev);
+      if (dropped) {
         const prevNum = Number(prev);
         const diff = price - prevNum;
         const pct = prevNum > 0 ? (diff / prevNum) * 100 : 0;
-        const arrow = diff > 0 ? "🔺" : "🔻";
         const cur = effectiveCurrency ?? "";
         const pounds =
           priceGbp == null
             ? ""
             : `\nApprox. **£${priceGbp.toFixed(2)} GBP**`;
-        await sendDiscord({
-          embeds: [
-            {
-              title: `${arrow} Price change: ${row.label}`,
-              url: row.url,
-              description: `**${cur} ${prevNum.toFixed(2)}** → **${cur} ${price.toFixed(2)}** (${diff > 0 ? "+" : ""}${pct.toFixed(1)}%)${pounds}`,
-              color: diff > 0 ? 0xef4444 : 0x22c55e,
-              timestamp: new Date().toISOString(),
-            },
-          ],
-        });
-        results.price_changes++;
-        results.discord_sent++;
+        const fingerprint = `${effectiveCurrency ?? "unknown"}:${price.toFixed(8)}`;
+        const reservation = await reserveNotification(
+          supabaseAdmin, "price_drop", row.id, fingerprint,
+        );
+        if (reservation) {
+          try {
+            await sendDiscord({
+              embeds: [
+                {
+                  title: `🔻 Price drop: ${row.label}`,
+                  url: row.url,
+                  description: `**${cur} ${prevNum.toFixed(2)}** → **${cur} ${price.toFixed(2)}** (${pct.toFixed(1)}%)${pounds}`,
+                  color: 0x22c55e,
+                  timestamp: new Date().toISOString(),
+                },
+              ],
+            });
+            await reservation.markSent();
+            results.price_drops++;
+            results.discord_sent++;
+          } catch (error) {
+            await reservation.release();
+            throw error;
+          }
+        }
       }
       await supabaseAdmin.from("price_history").insert({
         product_id: row.id,
@@ -219,6 +304,62 @@ async function runChecks() {
           last_error: msg.slice(0, 500),
         })
         .eq("id", row.id);
+    }
+  }
+
+  // --- BIG Games website ---
+  const websiteDb = supabaseAdmin as unknown as {
+    from: (table: string) => any;
+  };
+  const { data: websites, error: websiteListError } = await websiteDb
+    .from("tracked_websites")
+    .select("id, label, url, last_item_url");
+  if (websiteListError) results.errors.push(`websites list: ${websiteListError.message}`);
+
+  for (const row of (websites ?? []) as WebsiteRow[]) {
+    results.websites_checked++;
+    try {
+      const update = await checkBigGamesUpdates(row.url);
+      const isNew = row.last_item_url !== null && update.itemUrl !== row.last_item_url;
+      if (isNew) {
+        const reservation = await reserveNotification(
+          supabaseAdmin, "website_update", row.id, update.itemUrl,
+        );
+        if (reservation) {
+          try {
+            await sendDiscord({
+              embeds: [
+                {
+                  title: `New BIG Games update: ${update.title}`,
+                  url: update.itemUrl,
+                  description: update.summary?.slice(0, 500) ?? "A new developer blog has been published.",
+                  color: 0xf4c542,
+                  timestamp: new Date().toISOString(),
+                },
+              ],
+            });
+            await reservation.markSent();
+            results.website_updates++;
+            results.discord_sent++;
+          } catch (error) {
+            await reservation.release();
+            throw error;
+          }
+        }
+      }
+      await websiteDb.from("tracked_websites").update({
+        last_item_url: update.itemUrl,
+        last_item_title: update.title,
+        last_checked_at: new Date().toISOString(),
+        last_error: null,
+      }).eq("id", row.id);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      results.errors.push(`website/${row.label}: ${msg}`);
+      await websiteDb.from("tracked_websites").update({
+        last_checked_at: new Date().toISOString(),
+        last_error: msg.slice(0, 500),
+      }).eq("id", row.id);
     }
   }
 
