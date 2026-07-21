@@ -1,22 +1,105 @@
 // Server-only helpers for the tracker bot.
 // Do NOT import from client components.
 
+const MAX_PAGE_BYTES = 2_000_000;
+const MAX_REDIRECTS = 3;
+
+function isAllowedPageHost(candidate: URL, original: URL) {
+  if (
+    candidate.protocol !== "https:" ||
+    candidate.username ||
+    candidate.password ||
+    (candidate.port && candidate.port !== "443")
+  ) return false;
+
+  const host = candidate.hostname.toLowerCase();
+  const originalHost = original.hostname.toLowerCase();
+  if (originalHost === "eldorado.gg" || originalHost.endsWith(".eldorado.gg")) {
+    return host === "eldorado.gg" || host.endsWith(".eldorado.gg");
+  }
+  if (["x.com", "mobile.x.com", "syndication.twitter.com"].includes(originalHost)) {
+    return ["x.com", "mobile.x.com", "twitter.com", "syndication.twitter.com"].includes(host);
+  }
+  if (originalHost === "biggames.io" || originalHost === "www.biggames.io") {
+    return host === "biggames.io" || host === "www.biggames.io";
+  }
+  if (["catalog.roblox.com", "games.roblox.com"].includes(originalHost)) {
+    return host === originalHost;
+  }
+  return false;
+}
+
+async function readLimitedText(response: Response, provider: string) {
+  const declaredLength = Number(response.headers.get("content-length"));
+  if (Number.isFinite(declaredLength) && declaredLength > MAX_PAGE_BYTES) {
+    throw new Error(`${provider} response was too large`);
+  }
+  const contentType = response.headers.get("content-type")?.toLowerCase() ?? "";
+  if (
+    contentType &&
+    !contentType.includes("text/html") &&
+    !contentType.includes("application/xhtml+xml") &&
+    !contentType.includes("application/json")
+  ) {
+    throw new Error(`${provider} returned an unsupported content type`);
+  }
+  if (!response.body) return "";
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let bytes = 0;
+  let output = "";
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      bytes += value.byteLength;
+      if (bytes > MAX_PAGE_BYTES) throw new Error(`${provider} response was too large`);
+      output += decoder.decode(value, { stream: true });
+    }
+    return output + decoder.decode();
+  } finally {
+    await reader.cancel().catch(() => undefined);
+  }
+}
+
 async function fetchPublicPage(url: URL, provider: string): Promise<string> {
+  const original = new URL(url);
+  let current = new URL(url);
+  if (!isAllowedPageHost(current, original)) {
+    throw new Error(`${provider} URL is not allowed`);
+  }
+
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 15_000);
   try {
-    const response = await fetch(url, {
-      signal: controller.signal,
-      redirect: "follow",
-      headers: {
-        Accept: "text/html,application/xhtml+xml",
-        "Accept-Language": "en-GB,en;q=0.9",
-        "User-Agent":
-          "Mozilla/5.0 (compatible; AmbunctiousTracker/1.0; +https://ambunctious-tracker.lovable.app)",
-      },
-    });
-    if (!response.ok) throw new Error(`${provider} returned HTTP ${response.status}`);
-    return await response.text();
+    for (let redirects = 0; redirects <= MAX_REDIRECTS; redirects++) {
+      const response = await fetch(current, {
+        signal: controller.signal,
+        redirect: "manual",
+        headers: {
+          Accept: "text/html,application/xhtml+xml,application/json",
+          "Accept-Language": "en-GB,en;q=0.9",
+          "User-Agent":
+            "Mozilla/5.0 (compatible; AmbunctiousTracker/1.0; +https://ambunctious-tracker.lovable.app)",
+        },
+      });
+      if (response.status >= 300 && response.status < 400) {
+        const location = response.headers.get("location");
+        if (!location || redirects === MAX_REDIRECTS) {
+          throw new Error(`${provider} returned an invalid redirect`);
+        }
+        const next = new URL(location, current);
+        if (!isAllowedPageHost(next, original)) {
+          throw new Error(`${provider} attempted an unsafe redirect`);
+        }
+        current = next;
+        continue;
+      }
+      if (!response.ok) throw new Error(`${provider} returned HTTP ${response.status}`);
+      return await readLimitedText(response, provider);
+    }
+    throw new Error(`${provider} redirected too many times`);
   } catch (error) {
     if (error instanceof Error && error.name === "AbortError") {
       throw new Error(`${provider} timed out`);
@@ -272,6 +355,95 @@ export async function checkBigGamesUpdates(url: string): Promise<WebsiteUpdateRe
   };
 }
 
+// -------- Roblox creation monitoring --------
+
+export type RobloxCreation = {
+  key: string;
+  id: number;
+  kind: "catalog" | "experience";
+  name: string;
+  url: string;
+};
+
+async function fetchRobloxJson(url: URL): Promise<unknown> {
+  const html = await fetchPublicPage(url, "Roblox");
+  try {
+    return JSON.parse(html);
+  } catch {
+    throw new Error("Roblox returned invalid data");
+  }
+}
+
+export async function checkRobloxCreations(
+  entityType: "user" | "group",
+  entityId: number,
+): Promise<RobloxCreation[]> {
+  if (!Number.isSafeInteger(entityId) || entityId <= 0) {
+    throw new Error("Invalid Roblox user or group ID");
+  }
+
+  const creatorType = entityType === "user" ? 1 : 2;
+  const catalogUrl = new URL("https://catalog.roblox.com/v1/search/items/details");
+  catalogUrl.searchParams.set("Category", "1");
+  catalogUrl.searchParams.set("CreatorType", String(creatorType));
+  catalogUrl.searchParams.set("CreatorTargetId", String(entityId));
+  catalogUrl.searchParams.set("SortType", "3");
+  catalogUrl.searchParams.set("Limit", "30");
+
+  const gamesUrl = new URL(
+    entityType === "user"
+      ? `https://games.roblox.com/v2/users/${entityId}/games`
+      : `https://games.roblox.com/v2/groups/${entityId}/games`,
+  );
+  gamesUrl.searchParams.set("accessFilter", "Public");
+  gamesUrl.searchParams.set("sortOrder", "Desc");
+  gamesUrl.searchParams.set("limit", "30");
+
+  const [catalogResult, gamesResult] = await Promise.allSettled([
+    fetchRobloxJson(catalogUrl),
+    fetchRobloxJson(gamesUrl),
+  ]);
+  if (catalogResult.status === "rejected" && gamesResult.status === "rejected") {
+    throw new Error(
+      `Roblox checks failed: ${catalogResult.reason instanceof Error ? catalogResult.reason.message : "catalog unavailable"}; ${gamesResult.reason instanceof Error ? gamesResult.reason.message : "experiences unavailable"}`,
+    );
+  }
+
+  const creations: RobloxCreation[] = [];
+  if (catalogResult.status === "fulfilled") {
+    const rows = (catalogResult.value as { data?: Array<{ id?: unknown; name?: unknown; itemType?: unknown }> }).data ?? [];
+    for (const row of rows) {
+      const id = Number(row.id);
+      if (!Number.isSafeInteger(id) || id <= 0) continue;
+      creations.push({
+        key: `catalog:${id}`,
+        id,
+        kind: "catalog",
+        name: typeof row.name === "string" ? row.name.slice(0, 120) : `Roblox item ${id}`,
+        url: `https://www.roblox.com/catalog/${id}`,
+      });
+    }
+  }
+  if (gamesResult.status === "fulfilled") {
+    const rows = (gamesResult.value as { data?: Array<{ id?: unknown; name?: unknown; rootPlace?: { id?: unknown } }> }).data ?? [];
+    for (const row of rows) {
+      const id = Number(row.id);
+      const placeId = Number(row.rootPlace?.id);
+      if (!Number.isSafeInteger(id) || id <= 0) continue;
+      creations.push({
+        key: `experience:${id}`,
+        id,
+        kind: "experience",
+        name: typeof row.name === "string" ? row.name.slice(0, 120) : `Roblox experience ${id}`,
+        url: Number.isSafeInteger(placeId) && placeId > 0
+          ? `https://www.roblox.com/games/${placeId}`
+          : `https://www.roblox.com/games?Keyword=${encodeURIComponent(String(id))}`,
+      });
+    }
+  }
+  return creations;
+}
+
 // -------- Discord webhook --------
 
 export async function sendDiscord(payload: {
@@ -294,10 +466,14 @@ export async function sendDiscord(payload: {
     throw new Error("DISCORD_WEBHOOK_URL is not a valid URL");
   }
   if (
+    webhookUrl.protocol !== "https:" ||
+    webhookUrl.username ||
+    webhookUrl.password ||
+    (webhookUrl.port && webhookUrl.port !== "443") ||
     !["discord.com", "discordapp.com"].some(
       (host) => webhookUrl.hostname === host || webhookUrl.hostname.endsWith(`.${host}`),
     ) ||
-    !webhookUrl.pathname.includes("/api/webhooks/")
+    !/^\/api\/webhooks\/\d+\/[A-Za-z0-9._-]+\/?$/.test(webhookUrl.pathname)
   ) {
     throw new Error("DISCORD_WEBHOOK_URL is not a Discord webhook URL");
   }
@@ -309,14 +485,23 @@ export async function sendDiscord(payload: {
   });
 
   for (let attempt = 1; attempt <= 3; attempt++) {
-    const res = await fetch(webhookUrl, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "User-Agent": "Ambunctious-Tracker/1.0",
-      },
-      body,
-    });
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 10_000);
+    let res: Response;
+    try {
+      res = await fetch(webhookUrl, {
+        method: "POST",
+        redirect: "error",
+        signal: controller.signal,
+        headers: {
+          "Content-Type": "application/json",
+          "User-Agent": "Ambunctious-Tracker/1.0",
+        },
+        body,
+      });
+    } finally {
+      clearTimeout(timeout);
+    }
     if (res.ok) return;
 
     const responseText = await res.text();
@@ -330,7 +515,7 @@ export async function sendDiscord(payload: {
       try {
         const rateLimit = JSON.parse(responseText) as { retry_after?: number };
         if (typeof rateLimit.retry_after === "number") {
-          delay = Math.max(250, rateLimit.retry_after * 1_000);
+          delay = Math.min(10_000, Math.max(250, rateLimit.retry_after * 1_000));
         }
       } catch {
         // Fall back to a short retry delay.

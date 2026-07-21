@@ -5,6 +5,7 @@ import type { Database } from "@/integrations/supabase/types";
 import {
   checkBigGamesUpdates,
   checkProductPrice,
+  checkRobloxCreations,
   checkXProfile,
   convertToGBP,
   sendDiscord,
@@ -14,6 +15,14 @@ type XRow = {
   id: string;
   handle: string;
   last_post_url: string | null;
+};
+
+type RobloxRow = {
+  id: string;
+  entity_type: "user" | "group";
+  entity_id: number;
+  label: string;
+  known_item_keys: unknown;
 };
 
 type WebsiteRow = {
@@ -33,13 +42,15 @@ type ProductRow = {
 };
 
 const API_RELEASE = {
-  version: "2026.07.21-deduplicated-alerts-1",
-  title: "Accurate alerting and BIG Games monitor",
+  version: "2026.07.21-security-roblox-1",
+  title: "Security hardening and Roblox monitoring",
   changes: [
     "X alerts now require a strictly newer numeric post ID",
     "Price alerts are sent only for actual price drops",
     "A notification ledger prevents duplicate Discord messages",
     "BIG Games developer blogs are now monitored automatically",
+    "Outbound requests now block unsafe redirects and oversized responses",
+    "Roblox user and group creations are now monitored",
   ],
 };
 
@@ -152,6 +163,8 @@ async function runChecks() {
     price_drops: 0,
     websites_checked: 0,
     website_updates: 0,
+    roblox_checked: 0,
+    roblox_new_items: 0,
     discord_sent: 0,
     release_notifications: 0,
     errors: [] as string[],
@@ -304,6 +317,73 @@ async function runChecks() {
           last_error: msg.slice(0, 500),
         })
         .eq("id", row.id);
+    }
+  }
+
+  // --- Roblox profiles and groups ---
+  const robloxDb = supabaseAdmin as unknown as { from: (table: string) => any };
+  const { data: robloxEntities, error: robloxListError } = await robloxDb
+    .from("tracked_roblox_entities")
+    .select("id, entity_type, entity_id, label, known_item_keys");
+  if (robloxListError) results.errors.push(`roblox list: ${robloxListError.message}`);
+
+  for (const row of (robloxEntities ?? []) as RobloxRow[]) {
+    results.roblox_checked++;
+    try {
+      const creations = await checkRobloxCreations(row.entity_type, Number(row.entity_id));
+      const known = new Set(
+        Array.isArray(row.known_item_keys)
+          ? row.known_item_keys.filter((value): value is string => typeof value === "string")
+          : [],
+      );
+      const isBaseline = known.size === 0;
+      const fresh = isBaseline ? [] : creations.filter((item) => !known.has(item.key)).slice(0, 10);
+
+      for (const item of fresh) {
+        const reservation = await reserveNotification(
+          supabaseAdmin, "roblox_creation", row.id, item.key,
+        );
+        if (!reservation) continue;
+        try {
+          await sendDiscord({
+            embeds: [{
+              author: {
+                name: `Roblox ${row.entity_type}: ${row.label}`,
+                icon_url: "https://www.roblox.com/favicon.ico",
+              },
+              title: `New ${item.kind}: ${item.name}`,
+              url: item.url,
+              description: `A new public ${item.kind} was detected on Roblox.`,
+              thumbnail: { url: "https://www.roblox.com/favicon.ico" },
+              color: 0x00a2ff,
+              timestamp: new Date().toISOString(),
+            }],
+          });
+          await reservation.markSent();
+          results.roblox_new_items++;
+          results.discord_sent++;
+        } catch (error) {
+          await reservation.release();
+          throw error;
+        }
+      }
+
+      const mergedKeys = [...new Set([
+        ...creations.map((item) => item.key),
+        ...known,
+      ])].slice(0, 500);
+      await robloxDb.from("tracked_roblox_entities").update({
+        known_item_keys: mergedKeys,
+        last_checked_at: new Date().toISOString(),
+        last_error: null,
+      }).eq("id", row.id);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      results.errors.push(`roblox/${row.label}: ${msg}`);
+      await robloxDb.from("tracked_roblox_entities").update({
+        last_checked_at: new Date().toISOString(),
+        last_error: msg.slice(0, 500),
+      }).eq("id", row.id);
     }
   }
 

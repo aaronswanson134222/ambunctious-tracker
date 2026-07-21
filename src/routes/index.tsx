@@ -4,7 +4,7 @@ import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "rec
 import {
   Activity, AlertTriangle, ArrowDownRight, ArrowUpRight, CheckCircle2,
   ExternalLink, Eye, LoaderCircle, LockKeyhole, LogOut, Mail, Plus,
-  RefreshCw, Search, ShoppingBag, Trash2, Twitter,
+  Gamepad2, RefreshCw, Search, ShoppingBag, Trash2, Twitter,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -33,6 +33,10 @@ type XAccount = {
 type Product = {
   id: string; url: string; label: string; last_price: number | null; currency: string | null;
   last_price_gbp: number | null; last_checked_at: string | null; last_error: string | null;
+};
+type RobloxTracker = {
+  id: string; entity_type: "user" | "group"; entity_id: number; label: string;
+  last_checked_at: string | null; last_error: string | null;
 };
 type PricePoint = { checked_at: string; price: number; price_gbp: number | null };
 
@@ -74,9 +78,13 @@ function StatusPill({ error, checked }: { error: string | null; checked: string 
 function Index() {
   const [accounts, setAccounts] = useState<XAccount[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
+  const [robloxTrackers, setRobloxTrackers] = useState<RobloxTracker[]>([]);
   const [handle, setHandle] = useState("");
   const [productUrl, setProductUrl] = useState("");
   const [productLabel, setProductLabel] = useState("");
+  const [robloxType, setRobloxType] = useState<"user" | "group">("user");
+  const [robloxTarget, setRobloxTarget] = useState("");
+  const [robloxLabel, setRobloxLabel] = useState("");
   const [running, setRunning] = useState(false);
   const [scanSeconds, setScanSeconds] = useState(SCAN_INTERVAL_SECONDS);
   const [loading, setLoading] = useState(true);
@@ -89,13 +97,19 @@ function Index() {
 
   async function loadAll(showLoading = false) {
     if (showLoading) setLoading(true);
-    const [{ data: xs, error: xError }, { data: ps, error: pError }] = await Promise.all([
+    const [
+      { data: xs, error: xError },
+      { data: ps, error: pError },
+      { data: rs, error: rError },
+    ] = await Promise.all([
       supabase.from("tracked_x_accounts").select("*").order("created_at", { ascending: true }),
       supabase.from("tracked_products").select("*").order("created_at", { ascending: true }),
+      supabase.from("tracked_roblox_entities").select("*").order("created_at", { ascending: true }),
     ]);
-    if (xError || pError) toast.error("Couldn’t load every tracker. Please try again.");
+    if (xError || pError || rError) toast.error("Couldn’t load every tracker. Please try again.");
     setAccounts((xs ?? []) as XAccount[]);
     setProducts((ps ?? []) as Product[]);
+    setRobloxTrackers((rs ?? []) as RobloxTracker[]);
     if (ps?.length) {
       const entries = await Promise.all(ps.map(async (p) => {
         const { data } = await supabase.from("price_history").select("checked_at, price, price_gbp")
@@ -129,6 +143,7 @@ function Index() {
     else {
       setAccounts([]);
       setProducts([]);
+      setRobloxTrackers([]);
       setHistory({});
       setLoading(false);
     }
@@ -147,7 +162,10 @@ function Index() {
     setSendingLink(true);
     const { error } = await supabase.auth.signInWithOtp({
       email,
-      options: { emailRedirectTo: window.location.origin },
+      options: {
+        emailRedirectTo: window.location.origin,
+        shouldCreateUser: false,
+      },
     });
     setSendingLink(false);
     if (error) toast.error("Couldn’t send the secure sign-in link.");
@@ -181,9 +199,32 @@ function Index() {
     else { toast.success(`Now tracking ${label}`); setProductUrl(""); setProductLabel(""); await loadAll(); }
   }
 
-  async function remove(kind: "account" | "product", id: string, label: string) {
+  async function addRobloxTracker() {
+    const value = robloxTarget.trim();
+    const idMatch = value.match(/(?:users|groups)\/(\d+)/i) ?? value.match(/^(\d+)$/);
+    const entityId = Number(idMatch?.[1]);
+    const label = robloxLabel.trim();
+    if (!Number.isSafeInteger(entityId) || entityId <= 0) {
+      return toast.error("Enter a Roblox profile/group URL or numeric ID.");
+    }
+    if (!label || label.length > 120) return toast.error("Enter a short tracker label.");
+    const { error } = await supabase.from("tracked_roblox_entities").insert({
+      entity_type: robloxType,
+      entity_id: entityId,
+      label,
+    });
+    if (error) toast.error(error.message);
+    else {
+      toast.success(`Now tracking Roblox ${robloxType}: ${label}`);
+      setRobloxTarget("");
+      setRobloxLabel("");
+      await loadAll();
+    }
+  }
+
+  async function remove(kind: "account" | "product" | "roblox", id: string, label: string) {
     if (!window.confirm(`Stop tracking ${label}? This cannot be undone.`)) return;
-    const table = kind === "account" ? "tracked_x_accounts" : "tracked_products";
+    const table = kind === "account" ? "tracked_x_accounts" : kind === "product" ? "tracked_products" : "tracked_roblox_entities";
     const { error } = await supabase.from(table).delete().eq("id", id);
     if (error) toast.error(error.message);
     else { toast.success(`${label} removed`); await loadAll(); }
@@ -201,7 +242,7 @@ function Index() {
       });
       const body = await res.json();
       if (!res.ok) throw new Error(body?.error || "The check could not be completed.");
-      toast.success(`Check complete: ${body.x_new_posts} new posts and ${body.price_changes} price changes.`);
+      toast.success(`Check complete: ${body.x_new_posts} new X posts, ${body.price_drops} price drops and ${body.roblox_new_items} Roblox uploads.`);
       if (body.errors?.length) toast.warning(`${body.errors.length} tracker(s) need attention.`);
       await loadAll();
     } catch (e) { toast.error(e instanceof Error ? e.message : "Check failed. Try again."); }
@@ -210,7 +251,8 @@ function Index() {
 
   const filteredAccounts = useMemo(() => accounts.filter((a) => a.handle.toLowerCase().includes(query.toLowerCase())), [accounts, query]);
   const filteredProducts = useMemo(() => products.filter((p) => (p.label + p.url).toLowerCase().includes(query.toLowerCase())), [products, query]);
-  const all = [...accounts, ...products];
+  const filteredRoblox = useMemo(() => robloxTrackers.filter((r) => (r.label + r.entity_type + r.entity_id).toLowerCase().includes(query.toLowerCase())), [robloxTrackers, query]);
+  const all = [...accounts, ...products, ...robloxTrackers];
   const issues = all.filter((item) => item.last_error).length;
   const checked = all.map((item) => item.last_checked_at).filter(Boolean).sort().at(-1) ?? null;
 
@@ -311,7 +353,7 @@ function Index() {
         </section>
 
         <section className="metrics-grid mb-8 grid grid-cols-2 gap-px lg:grid-cols-4">
-          <Card className="metric-card"><div className="metric-icon"><Activity /></div><p>Active trackers</p><strong>{all.length}</strong><span>{accounts.length} social · {products.length} prices</span></Card>
+          <Card className="metric-card"><div className="metric-icon"><Activity /></div><p>Active trackers</p><strong>{all.length}</strong><span>{accounts.length} social · {products.length} prices · {robloxTrackers.length} Roblox</span></Card>
           <Card className="metric-card"><div className="metric-icon"><Twitter /></div><p>X accounts</p><strong>{accounts.length}</strong><span>Checked every 5 minutes</span></Card>
           <Card className="metric-card"><div className="metric-icon"><ShoppingBag /></div><p>Price watches</p><strong>{products.length}</strong><span>{Object.values(history).reduce((n, x) => n + x.length, 0)} data points</span></Card>
           <Card className={`metric-card ${issues ? "metric-warning" : ""}`}><div className="metric-icon">{issues ? <AlertTriangle /> : <CheckCircle2 />}</div><p>Tracker health</p><strong>{issues ? issues : "Good"}</strong><span>{issues ? "Need attention" : `Last check ${relativeTime(checked)}`}</span></Card>
@@ -325,7 +367,8 @@ function Index() {
           <Tabs defaultValue="x" className="space-y-5">
             <TabsList className="command-tabs h-12 w-full justify-start rounded-none p-1 sm:w-auto">
               <TabsTrigger value="x" className="h-10 flex-1 rounded-none px-4 sm:flex-none"><Twitter /> X SIGNALS <span className="count">{accounts.length}</span></TabsTrigger>
-              <TabsTrigger value="products" className="h-10 flex-1 rounded-none px-4 sm:flex-none"><ShoppingBag /> PRICE NODES <span className="count">{products.length}</span></TabsTrigger>
+              <TabsTrigger value="products" className="h-10 flex-1 rounded-none px-4 sm:flex-none"><ShoppingBag /> PRICES <span className="count">{products.length}</span></TabsTrigger>
+              <TabsTrigger value="roblox" className="h-10 flex-1 rounded-none px-4 sm:flex-none"><Gamepad2 /> ROBLOX <span className="count">{robloxTrackers.length}</span></TabsTrigger>
             </TabsList>
 
             <TabsContent value="x" className="space-y-4">
@@ -362,6 +405,33 @@ function Index() {
                     {points.length > 1 ? <div className="mt-4 h-32"><ResponsiveContainer width="100%" height="100%"><LineChart data={points}><XAxis dataKey="checked_at" hide /><YAxis hide domain={["auto", "auto"]} /><Tooltip contentStyle={{ background: "#111827", border: "1px solid #263247", borderRadius: 12 }} labelFormatter={(v) => new Date(v as string).toLocaleString()} formatter={(v) => [currencyPrice(p.currency, Number(v)), "Price"]} /><Line type="monotone" dataKey="price" stroke="#38bdf8" dot={false} strokeWidth={2.5} /></LineChart></ResponsiveContainer></div> : <div className="content-panel"><p className="text-sm text-muted-foreground">Price history will appear after two successful checks.</p></div>}
                     {p.last_error && <p className="error-copy"><AlertTriangle /> {p.last_error}</p>}
                     <div className="card-footer"><span>{points.length} recorded checks</span><Button variant="ghost" size="sm" onClick={() => void remove("product", p.id, p.label)}><Trash2 /> Remove</Button></div>
+                  </Card>;
+                })}</div>}
+            </TabsContent>
+
+            <TabsContent value="roblox" className="space-y-4">
+              <Card className="add-card items-start">
+                <div className="add-copy"><div className="add-icon"><Gamepad2 /></div><div><h3>Add a Roblox creator</h3><p>Watch public catalog uploads and experiences.</p></div></div>
+                <div className="grid w-full gap-2 sm:max-w-2xl sm:grid-cols-[130px_1fr_1fr_auto]">
+                  <select aria-label="Roblox creator type" value={robloxType} onChange={(e) => setRobloxType(e.target.value as "user" | "group")} className="command-input h-11 rounded-xl px-3">
+                    <option value="user">Profile</option><option value="group">Group</option>
+                  </select>
+                  <Input aria-label="Roblox URL or ID" placeholder="Profile/group URL or ID" value={robloxTarget} onChange={(e) => setRobloxTarget(e.target.value)} className="h-11 rounded-xl" />
+                  <Input aria-label="Roblox tracker label" placeholder="Short label" value={robloxLabel} onChange={(e) => setRobloxLabel(e.target.value)} onKeyDown={(e) => e.key === "Enter" && void addRobloxTracker()} className="h-11 rounded-xl" />
+                  <Button onClick={addRobloxTracker} className="h-11 rounded-xl">Add</Button>
+                </div>
+              </Card>
+              {!filteredRoblox.length ? <Empty icon={<Gamepad2 />} title={query ? "No matching Roblox trackers" : "No Roblox creators yet"} copy={query ? "Try a different search." : "Add a public profile or group to monitor new creations."} /> :
+                <div className="grid gap-3 lg:grid-cols-2">{filteredRoblox.map((r) => {
+                  const href = r.entity_type === "user" ? `https://www.roblox.com/users/${r.entity_id}/profile` : `https://www.roblox.com/communities/${r.entity_id}`;
+                  return <Card key={r.id} className="tracker-card">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex min-w-0 items-center gap-3"><div className="tracker-avatar"><Gamepad2 /></div><div className="min-w-0"><a className="tracker-title" href={href} target="_blank" rel="noreferrer">{r.label} <ExternalLink /></a><p className="tracker-meta">{r.entity_type.toUpperCase()} #{r.entity_id} · Checked {relativeTime(r.last_checked_at)}</p></div></div>
+                      <StatusPill error={r.last_error} checked={r.last_checked_at} />
+                    </div>
+                    <div className="content-panel"><p className="panel-label">MONITORING</p><p className="text-sm text-muted-foreground">New public catalog products and experiences. First scan creates a silent baseline.</p></div>
+                    {r.last_error && <p className="error-copy"><AlertTriangle /> {r.last_error}</p>}
+                    <div className="card-footer"><span>Discord alerts enabled</span><Button variant="ghost" size="sm" onClick={() => void remove("roblox", r.id, r.label)}><Trash2 /> Remove</Button></div>
                   </Card>;
                 })}</div>}
             </TabsContent>
