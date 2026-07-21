@@ -330,6 +330,12 @@ async function runChecks() {
     .select("id, entity_type, entity_id, label, known_item_keys, scan_types, baselined_scan_types, lookback_days");
   if (robloxListError) results.errors.push(`roblox list: ${robloxListError.message}`);
 
+  const { data: robloxOpenCloudKey } = await (
+    robloxDb.from
+      ? (supabaseAdmin as any).rpc("get_roblox_open_cloud_key")
+      : Promise.resolve({ data: null })
+  );
+
   for (const row of (robloxEntities ?? []) as RobloxRow[]) {
     results.roblox_checked++;
     try {
@@ -348,6 +354,7 @@ async function runChecks() {
         Number(row.entity_id),
         scanTypes,
         Number(row.lookback_days),
+        typeof robloxOpenCloudKey === "string" ? robloxOpenCloudKey : null,
       );
       const known = new Set(
         Array.isArray(row.known_item_keys)
