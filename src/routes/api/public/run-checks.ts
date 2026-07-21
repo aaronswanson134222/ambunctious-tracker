@@ -277,6 +277,10 @@ function json(body: unknown, status = 200) {
 export const Route = createFileRoute("/api/public/run-checks")({
   server: {
     handlers: {
+      GET: async () => json(
+        { error: "Method not allowed" },
+        405,
+      ),
       POST: async ({ request }) => {
         const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
         const caller = await authorizeRequest(request, supabaseAdmin);
