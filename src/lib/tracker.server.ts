@@ -694,7 +694,7 @@ export async function checkRobloxExperienceProducts(
         name: typeof rawName === "string"
           ? rawName.slice(0, 120)
           : `Developer product ${id}`,
-        url: `https://www.roblox.com/games/${placeId}`,
+        url: `https://www.roblox.com/games/${placeId}#!/store`,
         createdAt,
       });
     }
