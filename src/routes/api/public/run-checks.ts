@@ -25,14 +25,14 @@ type ProductRow = {
 };
 
 const API_RELEASE = {
-  version: "2026.07.21-security-owner-lock-1",
-  title: "Security and owner-access update",
+  version: "2026.07.21-free-trackers-1",
+  title: "Free tracking provider update",
   changes: [
-    "Dashboard data is now restricted to the verified owner",
-    "Public scan execution has been disabled",
-    "Scheduled scans use a private rotating database secret",
-    "Concurrent scans, unsafe URLs and Discord mention abuse are blocked",
-    "Security headers and passwordless owner login have been added",
+    "Paid Firecrawl checks have been removed",
+    "X accounts now use public embedded timeline data",
+    "Eldorado prices are read directly from public listing pages",
+    "Five-minute scans, owner security and Discord alerts remain active",
+    "No paid scraping credits are required",
   ],
 };
 
