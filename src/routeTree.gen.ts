@@ -11,10 +11,16 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ApiPublicRunChecksRouteImport } from './routes/api/public/run-checks'
+import { Route as ApiAuthPinRouteImport } from './routes/api/auth/pin'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAuthPinRoute = ApiAuthPinRouteImport.update({
+  id: '/api/auth/pin',
+  path: '/api/auth/pin',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiPublicRunChecksRoute = ApiPublicRunChecksRouteImport.update({
@@ -25,27 +31,31 @@ const ApiPublicRunChecksRoute = ApiPublicRunChecksRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/api/auth/pin': typeof ApiAuthPinRoute
   '/api/public/run-checks': typeof ApiPublicRunChecksRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/api/auth/pin': typeof ApiAuthPinRoute
   '/api/public/run-checks': typeof ApiPublicRunChecksRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/api/auth/pin': typeof ApiAuthPinRoute
   '/api/public/run-checks': typeof ApiPublicRunChecksRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/api/public/run-checks'
+  fullPaths: '/' | '/api/auth/pin' | '/api/public/run-checks'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/api/public/run-checks'
-  id: '__root__' | '/' | '/api/public/run-checks'
+  to: '/' | '/api/auth/pin' | '/api/public/run-checks'
+  id: '__root__' | '/' | '/api/auth/pin' | '/api/public/run-checks'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  ApiAuthPinRoute: typeof ApiAuthPinRoute
   ApiPublicRunChecksRoute: typeof ApiPublicRunChecksRoute
 }
 
@@ -56,6 +66,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/auth/pin': {
+      id: '/api/auth/pin'
+      path: '/api/auth/pin'
+      fullPath: '/api/auth/pin'
+      preLoaderRoute: typeof ApiAuthPinRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/public/run-checks': {
@@ -70,6 +87,7 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  ApiAuthPinRoute: ApiAuthPinRoute,
   ApiPublicRunChecksRoute: ApiPublicRunChecksRoute,
 }
 export const routeTree = rootRouteImport
