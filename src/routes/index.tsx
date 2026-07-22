@@ -3,8 +3,8 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import {
   Activity, AlertTriangle, ArrowDownRight, ArrowUpRight, CheckCircle2,
-  ExternalLink, Eye, LoaderCircle, LockKeyhole, LogOut, Plus,
-  Gamepad2, RefreshCw, Search, ShoppingBag, Trash2, Twitter,
+  ExternalLink, Eye, ImageOff, LoaderCircle, LockKeyhole, LogOut, Plus,
+  Gamepad2, Package, RefreshCw, Search, ShoppingBag, Trash2, Twitter,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
