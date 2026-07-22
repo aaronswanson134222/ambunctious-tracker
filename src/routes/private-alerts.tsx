@@ -14,7 +14,6 @@ function PrivateAlerts() {
   const [saving, setSaving] = useState(false);
   const [botToken, setBotToken] = useState("");
   const [discordUserId, setDiscordUserId] = useState("");
-  const [openaiKey, setOpenaiKey] = useState("");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
@@ -44,15 +43,14 @@ function PrivateAlerts() {
       const response = await fetch("/api/private-alerts/settings", {
         method: "POST",
         headers: { Authorization: `Bearer ${auth}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ botToken, discordUserId, openaiKey }),
+        body: JSON.stringify({ botToken, discordUserId }),
       });
       const body = await response.json() as { configured?: boolean; error?: string };
       if (!response.ok || !body.configured) throw new Error(body.error || "Could not save settings.");
       setConfigured(true);
       setBotToken("");
       setDiscordUserId("");
-      setOpenaiKey("");
-      setMessage("Private BIG Games DMs and the puzzle solver are configured.");
+      setMessage("Private BIG Games DMs are configured. The puzzle solver is free and runs in your browser.");
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Could not save settings.");
     } finally {
@@ -70,7 +68,7 @@ function PrivateAlerts() {
             <div>
               <p className="eyebrow"><span /> PRIVATE UPLINK</p>
               <h1 className="text-2xl font-semibold">BIG Games DM alerts</h1>
-              <p className="mt-2 text-sm text-muted-foreground">Your secrets are stored in Supabase Vault and are never returned to the browser.</p>
+              <p className="mt-2 text-sm text-muted-foreground">The Discord credentials are stored in Supabase Vault and are never returned to the browser.</p>
             </div>
           </div>
 
@@ -82,19 +80,19 @@ function PrivateAlerts() {
           )}
 
           <div className="space-y-4">
-            <div><label className="mb-2 block text-sm font-medium">Discord bot token</label><Input type="password" autoComplete="off" value={botToken} onChange={(e) => setBotToken(e.target.value)} placeholder="Paste token from the Discord Developer Portal" className="h-11 rounded-xl" /></div>
+            <div><label className="mb-2 block text-sm font-medium">Discord bot token</label><Input type="password" autoComplete="off" value={botToken} onChange={(e) => setBotToken(e.target.value)} placeholder="Paste your newly regenerated bot token" className="h-11 rounded-xl" /></div>
             <div><label className="mb-2 block text-sm font-medium">Your Discord user ID</label><Input inputMode="numeric" value={discordUserId} onChange={(e) => setDiscordUserId(e.target.value.replace(/\D/g, ""))} placeholder="Example: 123456789012345678" className="h-11 rounded-xl" /></div>
-            <div><label className="mb-2 block text-sm font-medium">OpenAI API key for puzzle solving</label><Input type="password" autoComplete="off" value={openaiKey} onChange={(e) => setOpenaiKey(e.target.value)} placeholder="Paste your API key" className="h-11 rounded-xl" /></div>
           </div>
 
-          <Button onClick={save} disabled={saving || !botToken || !discordUserId || !openaiKey} className="metal-button h-12 w-full rounded-xl">
+          <Button onClick={save} disabled={saving || !botToken || !discordUserId} className="metal-button h-12 w-full rounded-xl">
             {saving ? <LoaderCircle className="animate-spin" /> : <LockKeyhole />}{saving ? "Saving securely…" : "Save private alert settings"}
           </Button>
           {message && <p className="status-pill status-healthy">{message}</p>}
           {error && <p className="error-copy">{error}</p>}
 
           <div className="content-panel space-y-2 text-sm text-muted-foreground">
-            <p className="panel-label">DISCORD REQUIREMENTS</p>
+            <p className="panel-label">NO PAID API REQUIRED</p>
+            <p>Discord DMs are free. The puzzle solver uses on-device OCR and local puzzle checks, so it does not need an OpenAI key or create API charges.</p>
             <p>Invite the bot to at least one server you share, enable direct messages for that server, and enable Developer Mode to copy your user ID.</p>
           </div>
         </Card>
