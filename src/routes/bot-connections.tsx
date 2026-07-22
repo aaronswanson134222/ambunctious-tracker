@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Activity, ArrowLeft, BellRing, Bot, CheckCircle2, Database, ExternalLink, Gamepad2, Globe2, LoaderCircle, RefreshCw, Settings, TriangleAlert, Twitter } from "lucide-react";
+import { Activity, ArrowLeft, BellRing, Bot, CheckCircle2, Database, ExternalLink, Gamepad2, Globe2, LoaderCircle, RefreshCw, Send, Settings, TriangleAlert, Twitter } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { supabase } from "@/integrations/supabase/client";
@@ -54,12 +54,18 @@ function BotConnections() {
   const [data, setData] = useState<StatusData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [testingDm, setTestingDm] = useState(false);
+  const [dmResult, setDmResult] = useState<{ ok: boolean; message: string } | null>(null);
+
+  const accessToken = useCallback(async () => {
+    const { data: sessionData } = await supabase.auth.getSession();
+    return sessionData.session?.access_token ?? "";
+  }, []);
 
   const load = useCallback(async () => {
     setLoading(true); setError("");
     try {
-      const { data: sessionData } = await supabase.auth.getSession();
-      const token = sessionData.session?.access_token;
+      const token = await accessToken();
       if (!token) throw new Error("Sign into the tracker first.");
       const response = await fetch("/api/bot-connections/status", { headers: { Authorization: `Bearer ${token}` } });
       const body = await response.json() as StatusData & { error?: string };
@@ -67,7 +73,28 @@ function BotConnections() {
       setData(body);
     } catch (cause) { setError(cause instanceof Error ? cause.message : "Could not load connection status."); }
     finally { setLoading(false); }
-  }, []);
+  }, [accessToken]);
+
+  async function sendTestDm() {
+    setTestingDm(true);
+    setDmResult(null);
+    try {
+      const token = await accessToken();
+      if (!token) throw new Error("Sign into the tracker first.");
+      const response = await fetch("/api/bot-connections/test-dm", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const body = await response.json() as { sent?: boolean; sentAt?: string; botName?: string; error?: string };
+      if (!response.ok || !body.sent) throw new Error(body.error || "Could not send the test DM.");
+      setDmResult({ ok: true, message: `Test DM sent successfully from ${body.botName ?? "your bot"} at ${time(body.sentAt)}.` });
+      await load();
+    } catch (cause) {
+      setDmResult({ ok: false, message: cause instanceof Error ? cause.message : "Could not send the test DM." });
+    } finally {
+      setTestingDm(false);
+    }
+  }
 
   useEffect(() => { void load(); }, [load]);
 
@@ -94,7 +121,13 @@ function BotConnections() {
           <StatusCard icon={<BellRing />} title="Discord" healthy={data.discordConfigured}>
             <p className="text-sm text-muted-foreground">{data.discordConfigured ? "Bot token and DM recipient are securely configured." : "Add your Discord bot token and user ID."}</p>
             <p className="text-xs text-muted-foreground">Last status: {latestTime(data.discord[0])}</p>
-            <a href="/private-alerts" className="inline-flex items-center gap-2 text-sm text-primary hover:underline"><Settings size={15} /> Configure Discord</a>
+            <div className="flex flex-wrap gap-2">
+              <Button size="sm" onClick={() => void sendTestDm()} disabled={testingDm || !data.discordConfigured}>
+                {testingDm ? <LoaderCircle className="animate-spin" /> : <Send />} {testingDm ? "Sending…" : "Send Test DM"}
+              </Button>
+              <a href="/private-alerts"><Button size="sm" variant="outline"><Settings size={15} /> Configure</Button></a>
+            </div>
+            {dmResult && <p className={`text-sm ${dmResult.ok ? "text-emerald-400" : "error-copy"}`}>{dmResult.ok ? <CheckCircle2 className="mr-1 inline" size={15} /> : <TriangleAlert className="mr-1 inline" size={15} />}{dmResult.message}</p>}
           </StatusCard>
 
           <StatusCard icon={<Twitter />} title="X / BIG Games" healthy={(data.counts.x ?? 0) > 0}>
@@ -119,7 +152,7 @@ function BotConnections() {
           </StatusCard>
 
           <StatusCard icon={<Activity />} title="Quick actions" healthy>
-            <div className="flex flex-wrap gap-2"><a href="/private-alerts"><Button size="sm" variant="outline">Discord setup</Button></a><a href="/puzzle-solver"><Button size="sm" variant="outline">Puzzle solver</Button></a><a href="/"><Button size="sm" variant="outline">Run checks</Button></a></div>
+            <div className="flex flex-wrap gap-2"><Button size="sm" onClick={() => void sendTestDm()} disabled={testingDm || !data.discordConfigured}>{testingDm ? <LoaderCircle className="animate-spin" /> : <Send />} Test DM</Button><a href="/puzzle-solver"><Button size="sm" variant="outline">Puzzle solver</Button></a><a href="/"><Button size="sm" variant="outline">Run checks</Button></a></div>
           </StatusCard>
         </section>
 
