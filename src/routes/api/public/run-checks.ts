@@ -441,20 +441,16 @@ async function runChecks() {
     .select("id, entity_type, entity_id, label, known_item_keys, scan_types, baselined_scan_types, lookback_days");
   if (robloxListError) results.errors.push(`roblox list: ${robloxListError.message}`);
 
-  const { data: robloxOpenCloudKey } = await (
-    robloxDb.from
-      ? (supabaseAdmin as any).rpc("get_roblox_open_cloud_key")
-      : Promise.resolve({ data: null })
-  );
+  const { data: robloxOpenCloudKey } = await (supabaseAdmin as any).rpc("get_roblox_open_cloud_key");
 
   for (const row of (robloxEntities ?? []) as RobloxRow[]) {
     results.roblox_checked++;
     try {
-      const scanTypes = Array.isArray(row.scan_types)
+      const scanTypes = (Array.isArray(row.scan_types)
         ? row.scan_types.filter((value): value is "catalog" | "experience" | "game_pass" | "developer_product" =>
             ["catalog", "experience", "game_pass", "developer_product"].includes(String(value)),
           )
-        : ["catalog", "experience"];
+        : ["catalog", "experience"]) as ("catalog" | "experience" | "game_pass" | "developer_product")[];
       const baselinedTypes = new Set(
         Array.isArray(row.baselined_scan_types)
           ? row.baselined_scan_types.filter((value): value is string => typeof value === "string")
