@@ -715,7 +715,7 @@ export async function checkRobloxExperienceProducts(
 export async function sendDiscord(payload: {
   content?: string;
   embeds?: Array<Record<string, unknown>>;
-}): Promise<void> {
+}): Promise<string | null> {
   const webhook =
     process.env.DISCORD_WEBHOOK_URL ??
     process.env.DISCORD_WEBHOOK;
@@ -768,7 +768,10 @@ export async function sendDiscord(payload: {
     } finally {
       clearTimeout(timeout);
     }
-    if (res.ok) return;
+    if (res.ok) {
+      const responseBody = await res.json().catch(() => null) as { id?: unknown } | null;
+      return typeof responseBody?.id === "string" ? responseBody.id : null;
+    }
 
     const responseText = await res.text();
     if (attempt === 3 || (res.status < 500 && res.status !== 429)) {
@@ -789,4 +792,42 @@ export async function sendDiscord(payload: {
     }
     await new Promise((resolve) => setTimeout(resolve, delay));
   }
+  return null;
 }
+
+export async function editDiscordMessage(
+  messageId: string,
+  payload: { content?: string; embeds?: Array<Record<string, unknown>> },
+): Promise<boolean> {
+  const webhook = process.env.DISCORD_WEBHOOK_URL ?? process.env.DISCORD_WEBHOOK;
+  if (!webhook) throw new Error("Discord webhook is not configured");
+  const webhookUrl = new URL(webhook);
+  if (
+    webhookUrl.protocol !== "https:" ||
+    !["discord.com", "discordapp.com"].some(
+      (host) => webhookUrl.hostname === host || webhookUrl.hostname.endsWith(`.${host}`),
+    ) ||
+    !/^\/api\/webhooks\/\d+\/[A-Za-z0-9._-]+\/?$/.test(webhookUrl.pathname) ||
+    !/^\d{10,30}$/.test(messageId)
+  ) {
+    throw new Error("Invalid Discord webhook or message ID");
+  }
+
+  webhookUrl.pathname = `${webhookUrl.pathname.replace(/\/$/, "")}/messages/${messageId}`;
+  webhookUrl.search = "";
+  const response = await fetch(webhookUrl, {
+    method: "PATCH",
+    redirect: "manual",
+    headers: {
+      "Content-Type": "application/json",
+      "User-Agent": "Ambunctious-Tracker/1.0",
+    },
+    body: JSON.stringify({ ...payload, allowed_mentions: { parse: [] } }),
+  });
+  if (response.status === 404) return false;
+  if (!response.ok) {
+    throw new Error(`Discord webhook ${response.status}: ${(await response.text()).slice(0, 240)}`);
+  }
+  return true;
+}
+
