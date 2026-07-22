@@ -36,7 +36,7 @@ export const Route = createFileRoute("/api/private-alerts/settings")({
       POST: async ({ request }) => {
         const client = await ownerClient(request);
         if (!client) return json({ error: "Unauthorized" }, 401);
-        let body: { botToken?: unknown; discordUserId?: unknown; openaiKey?: unknown };
+        let body: { botToken?: unknown; discordUserId?: unknown };
         try {
           body = await request.json();
         } catch {
@@ -44,14 +44,12 @@ export const Route = createFileRoute("/api/private-alerts/settings")({
         }
         const botToken = typeof body.botToken === "string" ? body.botToken.trim() : "";
         const discordUserId = typeof body.discordUserId === "string" ? body.discordUserId.trim() : "";
-        const openaiKey = typeof body.openaiKey === "string" ? body.openaiKey.trim() : "";
-        if (botToken.length < 30 || !/^\d{10,30}$/.test(discordUserId) || openaiKey.length < 20) {
-          return json({ error: "Enter a valid bot token, Discord user ID and OpenAI API key" }, 400);
+        if (botToken.length < 30 || !/^\d{10,30}$/.test(discordUserId)) {
+          return json({ error: "Enter a valid bot token and Discord user ID" }, 400);
         }
         const { data, error } = await (client as any).rpc("set_private_alert_secrets", {
           bot_token: botToken,
           discord_user_id: discordUserId,
-          openai_key: openaiKey,
         });
         if (error || data !== true) return json({ error: error?.message || "Could not save settings" }, 400);
         return json({ configured: true });
