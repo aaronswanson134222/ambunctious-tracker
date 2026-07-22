@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { ArrowLeft, BellRing, CheckCircle2, LoaderCircle, LockKeyhole } from "lucide-react";
+import { ArrowLeft, BellRing, Bot, CheckCircle2, LoaderCircle, LockKeyhole } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -61,7 +61,10 @@ function PrivateAlerts() {
   return (
     <main className="min-h-screen bg-background px-4 py-6 text-foreground sm:px-6">
       <div className="mx-auto max-w-3xl space-y-5">
-        <Link to="/" className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"><ArrowLeft size={16} /> Back to tracker</Link>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <Link to="/" className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"><ArrowLeft size={16} /> Back to tracker</Link>
+          <a href="/bot-connections" className="inline-flex items-center gap-2 text-sm text-primary hover:underline"><Bot size={16} /> Bot Connections</a>
+        </div>
         <Card className="tracker-card space-y-5 p-5 sm:p-7">
           <div className="flex items-start gap-4">
             <div className="tracker-avatar"><BellRing /></div>
