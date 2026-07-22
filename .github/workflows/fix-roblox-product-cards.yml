@@ -1,0 +1,129 @@
+name: Fix Roblox product cards
+
+on:
+  push:
+    paths:
+      - '.github/workflows/fix-roblox-product-cards.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch product cards and thumbnails
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          index = Path('src/routes/index.tsx')
+          text = index.read_text()
+          text = text.replace(
+            '<ExperienceItemsPanel items={items} lookbackDays={experience.lookback_days} />',
+            '<ExperienceItemsPanel items={items} lookbackDays={experience.lookback_days} placeId={experience.place_id} />',
+          )
+          text = text.replace(
+            'const endpoint = kind === "game_pass"\n    ? "https://thumbnails.roblox.com/v1/game-passes"\n    : "https://thumbnails.roblox.com/v1/developer-products/icons";\n  const param = kind === "game_pass" ? "gamePassIds" : "developerProductIds";',
+            'const endpoint = "/api/roblox/thumbnails";\n  const param = "ids";',
+          )
+          text = text.replace(
+            'url.searchParams.set(param, chunk.join(","));\n    url.searchParams.set("size", "150x150");\n    url.searchParams.set("format", "Png");',
+            'url.searchParams.set(param, chunk.join(","));\n    url.searchParams.set("kind", kind);',
+          )
+          text = text.replace(
+            'function ExperienceItemsPanel({ items, lookbackDays }: { items: ExperienceProductItem[]; lookbackDays: number }) {',
+            'function ExperienceItemsPanel({ items, lookbackDays, placeId }: { items: ExperienceProductItem[]; lookbackDays: number; placeId: number }) {',
+          )
+          old = '''              <a
+                key={item.key}
+                href={item.url}
+                target="_blank"
+                rel="noreferrer"
+                className="group flex items-center gap-3 rounded-lg border border-white/8 bg-card/40 p-2 hover:border-primary/40 hover:bg-card/70"
+              >'''
+          new = '''              <div
+                key={item.key}
+                className="group flex items-center gap-3 rounded-lg border border-white/8 bg-card/40 p-2 hover:border-primary/40 hover:bg-card/70"
+              >'''
+          text = text.replace(old, new)
+          old = '''                <ExternalLink size={14} className="shrink-0 text-muted-foreground" />
+              </a>'''
+          new = '''                <a
+                  href={isPass ? item.url : `https://www.roblox.com/games/${placeId}#!/store`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex shrink-0 items-center gap-1 rounded-md border border-white/10 px-2 py-1 text-xs font-medium hover:border-primary/50 hover:text-primary"
+                >
+                  {isPass ? "Open pass" : "Open store"} <ExternalLink size={12} />
+                </a>
+              </div>'''
+          text = text.replace(old, new)
+          index.write_text(text)
+
+          route = Path('src/routes/api/roblox/thumbnails.ts')
+          route.write_text('''import { createFileRoute } from "@tanstack/react-router";
+
+function json(body: unknown, status = 200) {
+  return Response.json(body, {
+    status,
+    headers: {
+      "Cache-Control": "public, max-age=300, s-maxage=300",
+      "X-Content-Type-Options": "nosniff",
+    },
+  });
+}
+
+export const Route = createFileRoute("/api/roblox/thumbnails")({
+  server: {
+    handlers: {
+      GET: async ({ request }) => {
+        const url = new URL(request.url);
+        const kind = url.searchParams.get("kind");
+        if (kind !== "game_pass" && kind !== "developer_product") {
+          return json({ error: "Invalid thumbnail type" }, 400);
+        }
+        const ids = (url.searchParams.get("ids") ?? "")
+          .split(",")
+          .map((value) => Number(value))
+          .filter((value) => Number.isSafeInteger(value) && value > 0)
+          .slice(0, 100);
+        if (!ids.length) return json({ data: [] });
+
+        const upstream = new URL(
+          kind === "game_pass"
+            ? "https://thumbnails.roblox.com/v1/game-passes"
+            : "https://thumbnails.roblox.com/v1/developer-products/icons",
+        );
+        upstream.searchParams.set(
+          kind === "game_pass" ? "gamePassIds" : "developerProductIds",
+          ids.join(","),
+        );
+        upstream.searchParams.set("size", "150x150");
+        upstream.searchParams.set("format", "Png");
+        upstream.searchParams.set("isCircular", "false");
+
+        try {
+          const response = await fetch(upstream, {
+            headers: { Accept: "application/json", "User-Agent": "Ambunctious-Tracker/1.0" },
+          });
+          if (!response.ok) return json({ data: [] });
+          const body = await response.json() as { data?: unknown[] };
+          return json({ data: Array.isArray(body.data) ? body.data : [] });
+        } catch {
+          return json({ data: [] });
+        }
+      },
+    },
+  },
+});
+''')
+          PY
+      - name: Commit fix
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/routes/index.tsx src/routes/api/roblox/thumbnails.ts
+          git commit -m "Fix Roblox thumbnails and product links" || exit 0
+          git push
