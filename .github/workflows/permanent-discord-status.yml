@@ -1,0 +1,159 @@
+name: Patch permanent Discord status
+
+on:
+  push:
+    paths:
+      - '.github/workflows/permanent-discord-status.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Patch tracker code
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          tracker = Path('src/lib/tracker.server.ts')
+          text = tracker.read_text()
+          text = text.replace('}): Promise<void> {', '}): Promise<string | null> {', 1)
+          text = text.replace('    if (res.ok) return;', '''    if (res.ok) {
+      const responseBody = await res.json().catch(() => null) as { id?: unknown } | null;
+      return typeof responseBody?.id === "string" ? responseBody.id : null;
+    }''', 1)
+          text = text.replace('  }\n}', '''  }
+  return null;
+}
+
+export async function editDiscordMessage(
+  messageId: string,
+  payload: { content?: string; embeds?: Array<Record<string, unknown>> },
+): Promise<boolean> {
+  const webhook = process.env.DISCORD_WEBHOOK_URL ?? process.env.DISCORD_WEBHOOK;
+  if (!webhook) throw new Error("Discord webhook is not configured");
+  const webhookUrl = new URL(webhook);
+  if (
+    webhookUrl.protocol !== "https:" ||
+    !["discord.com", "discordapp.com"].some(
+      (host) => webhookUrl.hostname === host || webhookUrl.hostname.endsWith(`.${host}`),
+    ) ||
+    !/^\\/api\\/webhooks\\/\\d+\\/[A-Za-z0-9._-]+\\/?$/.test(webhookUrl.pathname) ||
+    !/^\\d{10,30}$/.test(messageId)
+  ) throw new Error("Invalid Discord webhook or message ID");
+
+  webhookUrl.pathname = `${webhookUrl.pathname.replace(/\\/$/, "")}/messages/${messageId}`;
+  webhookUrl.search = "";
+  const response = await fetch(webhookUrl, {
+    method: "PATCH",
+    redirect: "manual",
+    headers: {
+      "Content-Type": "application/json",
+      "User-Agent": "Ambunctious-Tracker/1.0",
+    },
+    body: JSON.stringify({ ...payload, allowed_mentions: { parse: [] } }),
+  });
+  if (response.status === 404) return false;
+  if (!response.ok) {
+    throw new Error(`Discord webhook ${response.status}: ${(await response.text()).slice(0, 240)}`);
+  }
+  return true;
+}''', 1)
+          tracker.write_text(text)
+
+          route = Path('src/routes/api/public/run-checks.ts')
+          text = route.read_text()
+          text = text.replace('  sendDiscord,\n', '  sendDiscord,\n  editDiscordMessage,\n', 1)
+          start = text.index('async function recordScanAndMaybeSendHourlySummary(')
+          end = text.index('\nasync function runChecks()', start)
+          replacement = r'''async function recordScanAndUpdatePermanentStatus(
+  supabaseAdmin: SupabaseClient<Database>,
+  results: ScanMetrics,
+) {
+  const db = supabaseAdmin as any;
+  const recordedAt = new Date();
+  const { error: insertError } = await db.from("tracker_scan_runs").insert({
+    x_checked: results.x_checked,
+    x_new_posts: results.x_new_posts,
+    products_checked: results.products_checked,
+    price_drops: results.price_drops,
+    websites_checked: results.websites_checked,
+    website_updates: results.website_updates,
+    roblox_checked: results.roblox_checked,
+    roblox_new_items: results.roblox_new_items,
+    error_count: results.errors.length,
+  });
+  if (insertError) throw new Error(`Could not record scan: ${insertError.message}`);
+
+  const { count: totalScans, error: countError } = await db
+    .from("tracker_scan_runs")
+    .select("id", { count: "exact", head: true });
+  if (countError) throw new Error(`Could not count scans: ${countError.message}`);
+
+  const { data: statusRow, error: statusError } = await db
+    .from("tracker_discord_status")
+    .select("message_id")
+    .eq("singleton", true)
+    .maybeSingle();
+  if (statusError) throw new Error(`Could not read Discord status: ${statusError.message}`);
+
+  const nextScanUnix = Math.floor((Math.floor(Date.now() / 60_000) + 1) * 60);
+  const checkedNow =
+    results.x_checked + results.products_checked + results.websites_checked + results.roblox_checked;
+  const detectedNow =
+    results.x_new_posts + results.price_drops + results.website_updates + results.roblox_new_items;
+  const payload = {
+    embeds: [{
+      author: { name: "AMBUNCTIOUS TRACKER // LIVE STATUS" },
+      title: results.errors.length ? "Monitoring active with warnings" : "Monitoring network online",
+      description: "This is the permanent tracker status message. It is edited after every scheduled scan.",
+      color: results.errors.length ? 0xf59e0b : 0x22c55e,
+      fields: [
+        { name: "Total scans completed", value: `**${Number(totalScans ?? 0).toLocaleString("en-GB")}**`, inline: true },
+        { name: "Last scan", value: `<t:${Math.floor(recordedAt.getTime() / 1000)}:R>`, inline: true },
+        { name: "Next scan", value: `<t:${nextScanUnix}:R>\n<t:${nextScanUnix}:T>`, inline: true },
+        { name: "Trackers checked", value: String(checkedNow), inline: true },
+        { name: "Updates detected", value: String(detectedNow), inline: true },
+        { name: "Health", value: results.errors.length ? `${results.errors.length} warning${results.errors.length === 1 ? "" : "s"}` : "All checks healthy", inline: true },
+      ],
+      footer: { text: "Updates every 60 seconds • Do not delete this message" },
+      timestamp: recordedAt.toISOString(),
+    }],
+  };
+
+  let messageId = typeof statusRow?.message_id === "string" ? statusRow.message_id : null;
+  let updated = false;
+  if (messageId) updated = await editDiscordMessage(messageId, payload);
+  if (!updated) {
+    messageId = await sendDiscord(payload);
+    if (!messageId) throw new Error("Discord did not return a message ID");
+  }
+
+  const { error: saveError } = await db.from("tracker_discord_status").upsert({
+    singleton: true,
+    message_id: messageId,
+    updated_at: recordedAt.toISOString(),
+  }, { onConflict: "singleton" });
+  if (saveError) throw new Error(`Could not save Discord status: ${saveError.message}`);
+  return true;
+}
+'''
+          text = text[:start] + replacement + text[end:]
+          text = text.replace('recordScanAndMaybeSendHourlySummary(supabaseAdmin, results)', 'recordScanAndUpdatePermanentStatus(supabaseAdmin, results)', 1)
+          text = text.replace('results.hourly_summaries++;', 'results.hourly_summaries++;', 1)
+          text = text.replace('`hourly summary: ${error instanceof Error ? error.message : String(error)}`', '`permanent Discord status: ${error instanceof Error ? error.message : String(error)}`', 1)
+          route.write_text(text)
+          PY
+      - name: Commit patch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/lib/tracker.server.ts src/routes/api/public/run-checks.ts
+          git commit -m "Use one permanent live Discord scan status" || exit 0
+          git push
