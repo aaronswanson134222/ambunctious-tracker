@@ -673,13 +673,13 @@ async function runChecks() {
   }
 
   try {
-    if (await recordScanAndMaybeSendHourlySummary(supabaseAdmin, results)) {
+    if (await recordScanAndUpdatePermanentStatus(supabaseAdmin, results)) {
       results.hourly_summaries++;
       results.discord_sent++;
     }
   } catch (error) {
     results.errors.push(
-      `hourly summary: ${error instanceof Error ? error.message : String(error)}`,
+      `permanent Discord status: ${error instanceof Error ? error.message : String(error)}`,
     );
   }
 
