@@ -21,9 +21,12 @@ function authorized(request: Request) {
   return Boolean(expected && supplied && supplied === expected);
 }
 
-async function discordRequest(path: string, init: RequestInit) {
-  const token = process.env.DISCORD_BOT_TOKEN?.trim();
-  if (!token) throw new Error("DISCORD_BOT_TOKEN is not configured");
+type PrivateSecrets = {
+  discord_bot_token?: string;
+  discord_user_id?: string;
+};
+
+async function discordRequest(token: string, path: string, init: RequestInit) {
   const response = await fetch(`https://discord.com/api/v10${path}`, {
     ...init,
     headers: {
@@ -39,12 +42,16 @@ async function discordRequest(path: string, init: RequestInit) {
   return response.json().catch(() => null);
 }
 
-async function sendPrivateAlert(postUrl: string, postText: string | null) {
-  const userId = process.env.DISCORD_USER_ID?.trim();
-  if (!userId || !/^\d{10,30}$/.test(userId)) {
-    throw new Error("DISCORD_USER_ID is not configured");
-  }
-  const dm = await discordRequest("/users/@me/channels", {
+async function sendPrivateAlert(
+  botToken: string,
+  userId: string,
+  postUrl: string,
+  postText: string | null,
+) {
+  if (!botToken || botToken.length < 30) throw new Error("Discord bot token is not configured");
+  if (!/^\d{10,30}$/.test(userId)) throw new Error("Discord user ID is not configured");
+
+  const dm = await discordRequest(botToken, "/users/@me/channels", {
     method: "POST",
     body: JSON.stringify({ recipient_id: userId }),
   }) as { id?: string } | null;
@@ -52,7 +59,7 @@ async function sendPrivateAlert(postUrl: string, postText: string | null) {
 
   const solverUrl = new URL("https://ambunctious-tracker.lovable.app/puzzle-solver");
   solverUrl.searchParams.set("tweet", postUrl);
-  await discordRequest(`/channels/${dm.id}/messages`, {
+  await discordRequest(botToken, `/channels/${dm.id}/messages`, {
     method: "POST",
     body: JSON.stringify({
       content: "🚨 **BIG Games just posted.** Open it now in case it is a puzzle or limited reward.",
@@ -78,6 +85,11 @@ async function sendPrivateAlert(postUrl: string, postText: string | null) {
 
 async function run() {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const { data: secretData, error: secretError } = await (supabaseAdmin as any)
+    .rpc("get_private_alert_secrets");
+  if (secretError) throw new Error(`Could not read private alert settings: ${secretError.message}`);
+  const secrets = (secretData ?? {}) as PrivateSecrets;
+
   const { postUrl, postText } = await checkXProfile("BIGGames");
   const id = statusId(postUrl);
   if (!postUrl || !id) throw new Error("BIG Games did not return a public post");
@@ -92,7 +104,12 @@ async function run() {
   if (error) throw new Error(`Could not reserve BIG Games alert: ${error.message}`);
 
   try {
-    await sendPrivateAlert(postUrl, postText);
+    await sendPrivateAlert(
+      secrets.discord_bot_token?.trim() ?? "",
+      secrets.discord_user_id?.trim() ?? "",
+      postUrl,
+      postText,
+    );
     await db.from("tracker_notification_events")
       .update({ sent_at: new Date().toISOString() })
       .eq("source_type", "big_games_dm")
