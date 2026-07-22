@@ -180,7 +180,7 @@ type ScanMetrics = {
   errors: string[];
 };
 
-async function recordScanAndMaybeSendHourlySummary(
+async function recordScanAndUpdatePermanentStatus(
   supabaseAdmin: SupabaseClient<Database>,
   results: ScanMetrics,
 ) {
@@ -199,75 +199,73 @@ async function recordScanAndMaybeSendHourlySummary(
   });
   if (insertError) throw new Error(`Could not record scan: ${insertError.message}`);
 
-  const currentHour = new Date(recordedAt);
-  currentHour.setUTCMinutes(0, 0, 0);
-  const previousHour = new Date(currentHour.getTime() - 60 * 60 * 1000);
-  const fingerprint = previousHour.toISOString().slice(0, 13);
-  const reservation = await reserveNotification(
-    supabaseAdmin, "hourly_summary", "global", fingerprint,
-  );
-  if (!reservation) return false;
+  const { count: totalScans, error: countError } = await db
+    .from("tracker_scan_runs")
+    .select("id", { count: "exact", head: true });
+  if (countError) throw new Error(`Could not count scans: ${countError.message}`);
 
-  try {
-    const { data: scans, error } = await db
-      .from("tracker_scan_runs")
-      .select("x_checked,x_new_posts,products_checked,price_drops,websites_checked,website_updates,roblox_checked,roblox_new_items,error_count")
-      .gte("created_at", previousHour.toISOString())
-      .lt("created_at", currentHour.toISOString());
-    if (error) throw new Error(`Could not read hourly scans: ${error.message}`);
+  const { data: statusRow, error: statusError } = await db
+    .from("tracker_discord_status")
+    .select("message_id")
+    .eq("singleton", true)
+    .maybeSingle();
+  if (statusError) throw new Error(`Could not read Discord status: ${statusError.message}`);
 
-    const totals = (scans ?? []).reduce(
-      (sum: Record<string, number>, scan: Record<string, number>) => {
-        for (const [key, value] of Object.entries(scan)) {
-          sum[key] = (sum[key] ?? 0) + (Number(value) || 0);
-        }
-        return sum;
-      },
-      {},
-    );
-    const detected =
-      (totals.x_new_posts ?? 0) +
-      (totals.price_drops ?? 0) +
-      (totals.website_updates ?? 0) +
-      (totals.roblox_new_items ?? 0);
-    const scanCount = scans?.length ?? 0;
-    const errorCount = totals.error_count ?? 0;
-
-    await sendDiscord({
-      embeds: [{
-        author: { name: "AMBUNCTIOUS TRACKER // HOURLY REPORT" },
-        title: detected > 0
-          ? `Detected ${detected} new update${detected === 1 ? "" : "s"}`
-          : "No new updates found",
-        description: scanCount > 0
-          ? "The monitoring network completed its scheduled checks for the last hour."
-          : "No completed scans were recorded during the last hour.",
-        color: errorCount > 0 ? 0xf59e0b : detected > 0 ? 0x22c55e : 0x8b95a5,
+  const nextScanUnix = Math.floor((Math.floor(Date.now() / 60_000) + 1) * 60);
+  const checkedNow =
+    results.x_checked + results.products_checked + results.websites_checked + results.roblox_checked;
+  const detectedNow =
+    results.x_new_posts + results.price_drops + results.website_updates + results.roblox_new_items;
+  const payload = {
+    embeds: [
+      {
+        author: { name: "AMBUNCTIOUS TRACKER // LIVE STATUS" },
+        title: results.errors.length ? "Monitoring active with warnings" : "Monitoring network online",
+        description:
+          "This is the permanent tracker status message. It is edited after every scheduled scan.",
+        color: results.errors.length ? 0xf59e0b : 0x22c55e,
         fields: [
-          { name: "X posts", value: String(totals.x_new_posts ?? 0), inline: true },
-          { name: "Price drops", value: String(totals.price_drops ?? 0), inline: true },
-          { name: "Website updates", value: String(totals.website_updates ?? 0), inline: true },
-          { name: "Roblox uploads", value: String(totals.roblox_new_items ?? 0), inline: true },
-          { name: "Scans completed", value: String(scanCount), inline: true },
           {
-            name: "Check status",
-            value: errorCount > 0
-              ? `${errorCount} check error${errorCount === 1 ? "" : "s"}`
+            name: "Total scans completed",
+            value: `**${Number(totalScans ?? 0).toLocaleString("en-GB")}**`,
+            inline: true,
+          },
+          { name: "Last scan", value: `<t:${Math.floor(recordedAt.getTime() / 1000)}:R>`, inline: true },
+          { name: "Next scan", value: `<t:${nextScanUnix}:R>\n<t:${nextScanUnix}:T>`, inline: true },
+          { name: "Trackers checked", value: String(checkedNow), inline: true },
+          { name: "Updates detected", value: String(detectedNow), inline: true },
+          {
+            name: "Health",
+            value: results.errors.length
+              ? `${results.errors.length} warning${results.errors.length === 1 ? "" : "s"}`
               : "All checks healthy",
             inline: true,
           },
         ],
-        footer: { text: `Hour beginning ${previousHour.toISOString().replace("T", " ").slice(0, 16)} UTC` },
+        footer: { text: "Updates every 60 seconds • Do not delete this message" },
         timestamp: recordedAt.toISOString(),
-      }],
-    });
-    await reservation.markSent();
-    return true;
-  } catch (error) {
-    await reservation.release();
-    throw error;
+      },
+    ],
+  };
+
+  let messageId = typeof statusRow?.message_id === "string" ? statusRow.message_id : null;
+  let updated = false;
+  if (messageId) updated = await editDiscordMessage(messageId, payload);
+  if (!updated) {
+    messageId = await sendDiscord(payload);
+    if (!messageId) throw new Error("Discord did not return a message ID");
   }
+
+  const { error: saveError } = await db
+    .from("tracker_discord_status")
+    .upsert(
+      { singleton: true, message_id: messageId, updated_at: recordedAt.toISOString() },
+      { onConflict: "singleton" },
+    );
+  if (saveError) throw new Error(`Could not save Discord status: ${saveError.message}`);
+  return true;
 }
+
 
 async function runChecks() {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
