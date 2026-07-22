@@ -745,23 +745,12 @@ function Index() {
               {!filteredExperiences.length ? <Empty icon={<Gamepad2 />} title={query ? "No matching experiences" : "No experiences tracked yet"} copy={query ? "Try a different search." : "Add a game above to list and monitor its monetization products."} /> :
                 <div className="space-y-4">{filteredExperiences.map((experience) => {
                   const items = Array.isArray(experience.items) ? experience.items : [];
-                  const passes = items.filter((item) => item.kind === "game_pass");
-                  const products = items.filter((item) => item.kind === "developer_product");
                   return <Card key={experience.id} className="tracker-card">
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex min-w-0 items-center gap-3"><div className="tracker-avatar"><Gamepad2 /></div><div className="min-w-0"><a className="tracker-title" href={`https://www.roblox.com/games/${experience.place_id}`} target="_blank" rel="noreferrer">{experience.label} <ExternalLink /></a><p className="tracker-meta">PLACE #{experience.place_id} · UNIVERSE #{experience.universe_id} · Checked {relativeTime(experience.last_checked_at)}</p></div></div>
                       <StatusPill error={experience.last_error} checked={experience.last_checked_at} />
                     </div>
-                    <div className="mt-4 grid gap-3 md:grid-cols-2">
-                      <div className="content-panel space-y-2">
-                        <p className="panel-label">GAME PASSES ({passes.length})</p>
-                        {!passes.length ? <p className="text-sm text-muted-foreground">No game passes found in this timeframe.</p> : passes.map((item) => <a key={item.key} className="flex items-center justify-between gap-2 text-sm hover:text-primary" href={item.url} target="_blank" rel="noreferrer"><span className="truncate">{item.name}</span><ExternalLink size={14} /></a>)}
-                      </div>
-                      <div className="content-panel space-y-2">
-                        <p className="panel-label">DEVELOPER PRODUCTS ({products.length})</p>
-                        {!products.length ? <p className="text-sm text-muted-foreground">No developer products were returned for this experience.</p> : products.map((item) => <a key={item.key} className="flex items-center justify-between gap-2 text-sm hover:text-primary" href={item.url} target="_blank" rel="noreferrer"><span className="truncate">{item.name}</span><ExternalLink size={14} /></a>)}
-                      </div>
-                    </div>
+                    <ExperienceItemsPanel items={items} lookbackDays={experience.lookback_days} />
                     {experience.last_error && <p className="error-copy"><AlertTriangle /> {experience.last_error}</p>}
                     <div className="card-footer">
                       <span>Every 60 seconds · Complete pass inventory · Discord alerts for new uploads</span>
