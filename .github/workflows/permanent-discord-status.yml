@@ -23,13 +23,16 @@ jobs:
 
           tracker = Path('src/lib/tracker.server.ts')
           text = tracker.read_text()
-          text = text.replace('}): Promise<void> {', '}): Promise<string | null> {', 1)
-          text = text.replace('    if (res.ok) return;', '''    if (res.ok) {
+          marker = '// -------- Discord webhook --------'
+          head, tail = text.split(marker, 1)
+          tail = tail.replace('}): Promise<void> {', '}): Promise<string | null> {', 1)
+          tail = tail.replace('    if (res.ok) return;', '''    if (res.ok) {
       const responseBody = await res.json().catch(() => null) as { id?: unknown } | null;
       return typeof responseBody?.id === "string" ? responseBody.id : null;
     }''', 1)
-          text = text.replace('  }\n}', '''  }
-  return null;
+          if not tail.rstrip().endswith('}'):
+            raise SystemExit('Discord helper did not end as expected')
+          tail = tail.rstrip()[:-1] + '''  return null;
 }
 
 export async function editDiscordMessage(
@@ -64,8 +67,9 @@ export async function editDiscordMessage(
     throw new Error(`Discord webhook ${response.status}: ${(await response.text()).slice(0, 240)}`);
   }
   return true;
-}''', 1)
-          tracker.write_text(text)
+}
+'''
+          tracker.write_text(head + marker + tail)
 
           route = Path('src/routes/api/public/run-checks.ts')
           text = route.read_text()
@@ -104,10 +108,8 @@ export async function editDiscordMessage(
   if (statusError) throw new Error(`Could not read Discord status: ${statusError.message}`);
 
   const nextScanUnix = Math.floor((Math.floor(Date.now() / 60_000) + 1) * 60);
-  const checkedNow =
-    results.x_checked + results.products_checked + results.websites_checked + results.roblox_checked;
-  const detectedNow =
-    results.x_new_posts + results.price_drops + results.website_updates + results.roblox_new_items;
+  const checkedNow = results.x_checked + results.products_checked + results.websites_checked + results.roblox_checked;
+  const detectedNow = results.x_new_posts + results.price_drops + results.website_updates + results.roblox_new_items;
   const payload = {
     embeds: [{
       author: { name: "AMBUNCTIOUS TRACKER // LIVE STATUS" },
@@ -146,7 +148,6 @@ export async function editDiscordMessage(
 '''
           text = text[:start] + replacement + text[end:]
           text = text.replace('recordScanAndMaybeSendHourlySummary(supabaseAdmin, results)', 'recordScanAndUpdatePermanentStatus(supabaseAdmin, results)', 1)
-          text = text.replace('results.hourly_summaries++;', 'results.hourly_summaries++;', 1)
           text = text.replace('`hourly summary: ${error instanceof Error ? error.message : String(error)}`', '`permanent Discord status: ${error instanceof Error ? error.message : String(error)}`', 1)
           route.write_text(text)
           PY
