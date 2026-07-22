@@ -3,8 +3,8 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import {
   Activity, AlertTriangle, ArrowDownRight, ArrowUpRight, CheckCircle2,
-  ExternalLink, Eye, LoaderCircle, LockKeyhole, LogOut, Plus,
-  Gamepad2, RefreshCw, Search, ShoppingBag, Trash2, Twitter,
+  ExternalLink, Eye, ImageOff, LoaderCircle, LockKeyhole, LogOut, Plus,
+  Gamepad2, Package, RefreshCw, Search, ShoppingBag, Trash2, Twitter,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -745,23 +745,12 @@ function Index() {
               {!filteredExperiences.length ? <Empty icon={<Gamepad2 />} title={query ? "No matching experiences" : "No experiences tracked yet"} copy={query ? "Try a different search." : "Add a game above to list and monitor its monetization products."} /> :
                 <div className="space-y-4">{filteredExperiences.map((experience) => {
                   const items = Array.isArray(experience.items) ? experience.items : [];
-                  const passes = items.filter((item) => item.kind === "game_pass");
-                  const products = items.filter((item) => item.kind === "developer_product");
                   return <Card key={experience.id} className="tracker-card">
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex min-w-0 items-center gap-3"><div className="tracker-avatar"><Gamepad2 /></div><div className="min-w-0"><a className="tracker-title" href={`https://www.roblox.com/games/${experience.place_id}`} target="_blank" rel="noreferrer">{experience.label} <ExternalLink /></a><p className="tracker-meta">PLACE #{experience.place_id} · UNIVERSE #{experience.universe_id} · Checked {relativeTime(experience.last_checked_at)}</p></div></div>
                       <StatusPill error={experience.last_error} checked={experience.last_checked_at} />
                     </div>
-                    <div className="mt-4 grid gap-3 md:grid-cols-2">
-                      <div className="content-panel space-y-2">
-                        <p className="panel-label">GAME PASSES ({passes.length})</p>
-                        {!passes.length ? <p className="text-sm text-muted-foreground">No game passes found in this timeframe.</p> : passes.map((item) => <a key={item.key} className="flex items-center justify-between gap-2 text-sm hover:text-primary" href={item.url} target="_blank" rel="noreferrer"><span className="truncate">{item.name}</span><ExternalLink size={14} /></a>)}
-                      </div>
-                      <div className="content-panel space-y-2">
-                        <p className="panel-label">DEVELOPER PRODUCTS ({products.length})</p>
-                        {!products.length ? <p className="text-sm text-muted-foreground">No developer products were returned for this experience.</p> : products.map((item) => <a key={item.key} className="flex items-center justify-between gap-2 text-sm hover:text-primary" href={item.url} target="_blank" rel="noreferrer"><span className="truncate">{item.name}</span><ExternalLink size={14} /></a>)}
-                      </div>
-                    </div>
+                    <ExperienceItemsPanel items={items} lookbackDays={experience.lookback_days} />
                     {experience.last_error && <p className="error-copy"><AlertTriangle /> {experience.last_error}</p>}
                     <div className="card-footer">
                       <span>Every 60 seconds · Complete pass inventory · Discord alerts for new uploads</span>
@@ -783,4 +772,180 @@ function Index() {
 
 function Empty({ icon, title, copy }: { icon: ReactNode; title: string; copy: string }) {
   return <Card className="empty-state"><div className="empty-icon">{icon}</div><h3>{title}</h3><p>{copy}</p></Card>;
+}
+
+type ThumbState = Record<string, string | null>;
+
+async function fetchRobloxThumbs(
+  kind: "game_pass" | "developer_product",
+  ids: number[],
+): Promise<Record<number, string | null>> {
+  if (!ids.length) return {};
+  const out: Record<number, string | null> = {};
+  const endpoint = kind === "game_pass"
+    ? "https://thumbnails.roblox.com/v1/game-passes"
+    : "https://thumbnails.roblox.com/v1/developer-products/icons";
+  const param = kind === "game_pass" ? "gamePassIds" : "developerProductIds";
+  for (let i = 0; i < ids.length; i += 100) {
+    const chunk = ids.slice(i, i + 100);
+    const url = new URL(endpoint);
+    url.searchParams.set(param, chunk.join(","));
+    url.searchParams.set("size", "150x150");
+    url.searchParams.set("format", "Png");
+    try {
+      const res = await fetch(url.toString());
+      if (!res.ok) { chunk.forEach((id) => (out[id] = null)); continue; }
+      const body = await res.json() as { data?: Array<{ targetId?: number; state?: string; imageUrl?: string }> };
+      for (const row of body.data ?? []) {
+        if (typeof row.targetId !== "number") continue;
+        out[row.targetId] = row.state === "Completed" && row.imageUrl ? row.imageUrl : null;
+      }
+      chunk.forEach((id) => { if (!(id in out)) out[id] = null; });
+    } catch {
+      chunk.forEach((id) => (out[id] = null));
+    }
+  }
+  return out;
+}
+
+function ExperienceItemsPanel({ items, lookbackDays }: { items: ExperienceProductItem[]; lookbackDays: number }) {
+  const [search, setSearch] = useState("");
+  const [typeFilter, setTypeFilter] = useState<"all" | "game_pass" | "developer_product">("all");
+  const [sortBy, setSortBy] = useState<"newest" | "oldest" | "name">("newest");
+  const [recentOnly, setRecentOnly] = useState(false);
+  const [thumbs, setThumbs] = useState<ThumbState>({});
+
+  const hasAnyCreatedAt = useMemo(() => items.some((i) => !!i.createdAt), [items]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const missingPasses: number[] = [];
+    const missingProducts: number[] = [];
+    for (const item of items) {
+      const key = `${item.kind}:${item.id}`;
+      if (key in thumbs) continue;
+      (item.kind === "game_pass" ? missingPasses : missingProducts).push(item.id);
+    }
+    if (!missingPasses.length && !missingProducts.length) return;
+    (async () => {
+      const [pass, prod] = await Promise.all([
+        fetchRobloxThumbs("game_pass", missingPasses),
+        fetchRobloxThumbs("developer_product", missingProducts),
+      ]);
+      if (cancelled) return;
+      setThumbs((prev) => {
+        const next: ThumbState = { ...prev };
+        for (const [id, url] of Object.entries(pass)) next[`game_pass:${id}`] = url;
+        for (const [id, url] of Object.entries(prod)) next[`developer_product:${id}`] = url;
+        return next;
+      });
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [items]);
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    const cutoff = recentOnly && lookbackDays > 0
+      ? Date.now() - lookbackDays * 86_400_000
+      : null;
+    const list = items.filter((item) => {
+      if (typeFilter !== "all" && item.kind !== typeFilter) return false;
+      if (q && !`${item.name} ${item.id}`.toLowerCase().includes(q)) return false;
+      if (cutoff != null && item.createdAt) {
+        if (Date.parse(item.createdAt) < cutoff) return false;
+      } else if (cutoff != null && !item.createdAt) {
+        return false;
+      }
+      return true;
+    });
+    list.sort((a, b) => {
+      if (sortBy === "name") return a.name.localeCompare(b.name);
+      const at = a.createdAt ? Date.parse(a.createdAt) : 0;
+      const bt = b.createdAt ? Date.parse(b.createdAt) : 0;
+      return sortBy === "newest" ? bt - at || b.id - a.id : at - bt || a.id - b.id;
+    });
+    return list;
+  }, [items, search, typeFilter, sortBy, recentOnly, lookbackDays]);
+
+  const totalPasses = items.filter((i) => i.kind === "game_pass").length;
+  const totalProducts = items.filter((i) => i.kind === "developer_product").length;
+  const shownPasses = filtered.filter((i) => i.kind === "game_pass").length;
+  const shownProducts = filtered.filter((i) => i.kind === "developer_product").length;
+
+  const selectClass = "h-9 rounded-lg border border-input bg-background px-2 text-sm";
+
+  return (
+    <div className="mt-4 space-y-3">
+      <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+        <div className="relative flex-1 min-w-[180px]">
+          <Search className="pointer-events-none absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            aria-label="Search items"
+            placeholder="Search name or ID"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="h-9 rounded-lg pl-8"
+          />
+        </div>
+        <select aria-label="Type filter" className={selectClass} value={typeFilter} onChange={(e) => setTypeFilter(e.target.value as typeof typeFilter)}>
+          <option value="all">All types</option>
+          <option value="game_pass">Game passes</option>
+          <option value="developer_product">Developer products</option>
+        </select>
+        <select aria-label="Sort by" className={selectClass} value={sortBy} onChange={(e) => setSortBy(e.target.value as typeof sortBy)}>
+          <option value="newest">Newest</option>
+          <option value="oldest">Oldest</option>
+          <option value="name">Name A–Z</option>
+        </select>
+        {hasAnyCreatedAt && lookbackDays > 0 && (
+          <label className="flex items-center gap-2 text-xs text-muted-foreground">
+            <input type="checkbox" checked={recentOnly} onChange={(e) => setRecentOnly(e.target.checked)} />
+            Only last {lookbackDays}d
+          </label>
+        )}
+      </div>
+      <p className="text-xs text-muted-foreground">
+        Showing {filtered.length} of {items.length} · Passes {shownPasses}/{totalPasses} · Dev products {shownProducts}/{totalProducts}
+      </p>
+      {!filtered.length ? (
+        <p className="text-sm text-muted-foreground">No items match these filters.</p>
+      ) : (
+        <div className="grid gap-2 sm:grid-cols-2">
+          {filtered.map((item) => {
+            const thumb = thumbs[`${item.kind}:${item.id}`];
+            const isPass = item.kind === "game_pass";
+            return (
+              <a
+                key={item.key}
+                href={item.url}
+                target="_blank"
+                rel="noreferrer"
+                className="group flex items-center gap-3 rounded-lg border border-white/8 bg-card/40 p-2 hover:border-primary/40 hover:bg-card/70"
+              >
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-md border border-white/8 bg-background">
+                  {thumb ? (
+                    <img src={thumb} alt="" loading="lazy" className="h-full w-full object-cover" />
+                  ) : thumb === null ? (
+                    <ImageOff className="h-5 w-5 text-muted-foreground" />
+                  ) : (
+                    <LoaderCircle className="h-4 w-4 animate-spin text-muted-foreground" />
+                  )}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium group-hover:text-primary">{item.name}</p>
+                  <p className="truncate text-[11px] uppercase tracking-wide text-muted-foreground">
+                    {isPass ? <><Package className="mr-1 inline h-3 w-3" />Game pass</> : <><ShoppingBag className="mr-1 inline h-3 w-3" />Dev product</>}
+                    {" · #"}{item.id}
+                    {item.createdAt ? ` · ${new Date(item.createdAt).toLocaleDateString()}` : ""}
+                  </p>
+                </div>
+                <ExternalLink size={14} className="shrink-0 text-muted-foreground" />
+              </a>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
 }
