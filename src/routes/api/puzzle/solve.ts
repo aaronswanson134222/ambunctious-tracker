@@ -10,26 +10,32 @@ function json(body: unknown, status = 200) {
   });
 }
 
-async function ownerAuthorized(request: Request) {
+async function ownerClient(request: Request) {
   const header = request.headers.get("authorization");
-  if (!header?.startsWith("Bearer ")) return false;
+  if (!header?.startsWith("Bearer ")) return null;
   const token = header.slice(7).trim();
-  if (!token || token.length > 4096) return false;
+  if (!token || token.length > 4096) return null;
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const { data, error } = await supabaseAdmin.auth.getUser(token);
-  if (error || !data.user?.email) return false;
+  if (error || !data.user?.email) return null;
   const { data: isOwner, error: ownerError } = await (supabaseAdmin as any)
     .rpc("verify_tracker_owner_email", { candidate: data.user.email });
-  return !ownerError && isOwner === true;
+  return !ownerError && isOwner === true ? supabaseAdmin : null;
 }
 
 export const Route = createFileRoute("/api/puzzle/solve")({
   server: {
     handlers: {
       POST: async ({ request }) => {
-        if (!(await ownerAuthorized(request))) return json({ error: "Unauthorized" }, 401);
-        const apiKey = process.env.OPENAI_API_KEY?.trim();
-        if (!apiKey) return json({ error: "OPENAI_API_KEY is not configured" }, 503);
+        const client = await ownerClient(request);
+        if (!client) return json({ error: "Unauthorized" }, 401);
+        const { data: secretData, error: secretError } = await (client as any)
+          .rpc("get_private_alert_secrets");
+        if (secretError) return json({ error: "Could not read puzzle solver settings" }, 503);
+        const apiKey = typeof secretData?.openai_puzzle_key === "string"
+          ? secretData.openai_puzzle_key.trim()
+          : "";
+        if (!apiKey) return json({ error: "OpenAI puzzle solver key is not configured" }, 503);
 
         const declaredLength = Number(request.headers.get("content-length"));
         if (Number.isFinite(declaredLength) && declaredLength > 8_500_000) {
@@ -64,7 +70,7 @@ export const Route = createFileRoute("/api/puzzle/solve")({
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            model: process.env.OPENAI_PUZZLE_MODEL?.trim() || "gpt-4.1-mini",
+            model: "gpt-4.1-mini",
             input: [{
               role: "user",
               content: [
