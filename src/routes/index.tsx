@@ -140,7 +140,7 @@ function Index() {
     setAccounts((xs ?? []) as XAccount[]);
     setProducts((ps ?? []) as Product[]);
     setRobloxTrackers((rs ?? []) as RobloxTracker[]);
-    setExperienceTrackers((es ?? []) as ExperienceTracker[]);
+    setExperienceTrackers((es ?? []) as unknown as ExperienceTracker[]);
     if (ps?.length) {
       const entries = await Promise.all(ps.map(async (p) => {
         const { data } = await supabase.from("price_history").select("checked_at, price, price_gbp")
