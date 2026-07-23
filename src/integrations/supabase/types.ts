@@ -286,6 +286,33 @@ export type Database = {
         }
         Relationships: []
       }
+      tracker_dm_deliveries: {
+        Row: {
+          created_at: string
+          fingerprint: string
+          last_error: string | null
+          sent_at: string | null
+          source_id: string
+          source_type: string
+        }
+        Insert: {
+          created_at?: string
+          fingerprint: string
+          last_error?: string | null
+          sent_at?: string | null
+          source_id: string
+          source_type: string
+        }
+        Update: {
+          created_at?: string
+          fingerprint?: string
+          last_error?: string | null
+          sent_at?: string | null
+          source_id?: string
+          source_type?: string
+        }
+        Relationships: []
+      }
       tracker_notification_events: {
         Row: {
           created_at: string
@@ -407,10 +434,25 @@ export type Database = {
           owner_email: string
         }[]
       }
+      get_private_alert_secrets: { Args: never; Returns: Json }
       get_roblox_open_cloud_key: { Args: never; Returns: string }
+      has_private_alert_secrets: { Args: never; Returns: boolean }
       has_roblox_open_cloud_key: { Args: never; Returns: boolean }
       is_tracker_owner: { Args: never; Returns: boolean }
       release_tracker_run_lock: { Args: never; Returns: boolean }
+      set_private_alert_secrets:
+        | {
+            Args: { bot_token: string; discord_user_id: string }
+            Returns: boolean
+          }
+        | {
+            Args: {
+              bot_token: string
+              discord_user_id: string
+              openai_key: string
+            }
+            Returns: boolean
+          }
       set_roblox_open_cloud_key: {
         Args: { candidate: string }
         Returns: boolean
