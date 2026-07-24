@@ -161,7 +161,8 @@ function rawSeam(a: Tile, b: Tile, direction: Direction) {
 function pairKey(a: Tile, b: Tile, direction: Direction) { return `${direction}:${a.signature}>${b.signature}`; }
 function learnedPairAdjustment(a: Tile, b: Tile, direction: Direction, profile: LearningProfile) {
   const key = pairKey(a, b, direction);
-  return (profile.rejectedNeighbourPairs[key] || 0) * 90 - (profile.acceptedNeighbourPairs[key] || 0) * 90;
+  const scale = 90 + Math.min(180, profile.correctionCount * 6);
+  return (profile.rejectedNeighbourPairs[key] || 0) * scale - (profile.acceptedNeighbourPairs[key] || 0) * scale;
 }
 function adjustedWeights(base: EngineWeights, profile: LearningProfile): EngineWeights {
   return {
