@@ -205,7 +205,7 @@ function boardScore(order: number[], costs: PairCosts, rows: number, cols: numbe
   return score;
 }
 async function beamSolve(costs: PairCosts, rows: number, cols: number, deep: boolean, progress: (value: number) => void, offset: number, span: number) {
-  const n = rows * cols, width = deep ? 3600 : 1350, branch = deep ? 16 : 9;
+  const n = rows * cols, width = deep ? 5200 : 1800, branch = deep ? 22 : 11;
   let beam: { order: number[]; used: bigint; cost: number }[] = [{ order: [], used: 0n, cost: 0 }];
   for (let pos = 0; pos < n; pos++) {
     const r = Math.floor(pos / cols), c = pos % cols, next: typeof beam = [];
