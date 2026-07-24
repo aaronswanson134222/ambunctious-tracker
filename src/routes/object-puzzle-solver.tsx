@@ -437,7 +437,7 @@ function ObjectPuzzleSolver() {
   }
   async function finishCandidates(results: EngineResult[], extractedTiles: Tile[], tileW: number, tileH: number) {
     const ranks = normalisedRank(results);
-    const sorted = [...results].sort((a, b) => candidateConsensusScore(a, results, ranks) - candidateConsensusScore(b, results, ranks));
+    const sorted = [...results].sort((a, b) => candidateConsensusScore(a, results, ranks, rows, cols) - candidateConsensusScore(b, results, ranks, rows, cols));
     const diverse: EngineResult[] = [];
     for (const candidate of sorted) {
       if (diverse.every((existing) => boardDistance(candidate.order, existing.order) > .1)) diverse.push(candidate);
