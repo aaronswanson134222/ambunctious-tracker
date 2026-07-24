@@ -367,19 +367,37 @@ async function renderBoard(tiles: Tile[], order: number[], rows: number, cols: n
 }
 function suggestionsFor(order: number[], costs: PairCosts, tiles: Tile[], rows: number, cols: number, confidence: number[]) {
   const current = boardScore(order, costs, rows, cols, tiles, 1);
-  const suspicious = confidence.map((value, index) => ({ value, index })).sort((a, b) => a.value - b.value).slice(0, Math.min(8, order.length)).map((entry) => entry.index);
+  const suspicious = confidence.map((value, index) => ({ value, index })).sort((a, b) => a.value - b.value).slice(0, Math.min(10, order.length)).map((entry) => entry.index);
+  const weightOf = (i: number) => 1 + Math.max(0, 100 - (confidence[i] || 0)) / 55;
   const suggestions: Suggestion[] = [];
   for (const a of suspicious) for (let b = 0; b < order.length; b++) if (a !== b) {
     const next = order.slice(); [next[a], next[b]] = [next[b], next[a]];
-    const gain = current - boardScore(next, costs, rows, cols, tiles, 1);
+    const rawGain = current - boardScore(next, costs, rows, cols, tiles, 1);
+    if (rawGain <= 0) continue;
+    const gain = rawGain * ((weightOf(a) + weightOf(b)) / 2);
     const ar = Math.floor(a / cols) + 1, ac = a % cols + 1, br = Math.floor(b / cols) + 1, bc = b % cols + 1;
     suggestions.push({ a, b, gain, reason: `Swap row ${ar}, column ${ac} with row ${br}, column ${bc}` });
   }
+  for (let i = 0; i < suspicious.length; i++) for (let j = i + 1; j < suspicious.length; j++) for (let k = j + 1; k < suspicious.length; k++) {
+    const a = suspicious[i], b = suspicious[j], c = suspicious[k];
+    for (const perm of [[b, c, a], [c, a, b]] as const) {
+      const next = order.slice();
+      next[a] = order[perm[0]]; next[b] = order[perm[1]]; next[c] = order[perm[2]];
+      const rawGain = current - boardScore(next, costs, rows, cols, tiles, 1);
+      if (rawGain <= 0) continue;
+      const gain = rawGain * ((weightOf(a) + weightOf(b) + weightOf(c)) / 3) * 0.9;
+      const ar = Math.floor(a / cols) + 1, ac = a % cols + 1;
+      const br = Math.floor(b / cols) + 1, bc = b % cols + 1;
+      const cr = Math.floor(c / cols) + 1, cc = c % cols + 1;
+      suggestions.push({ a, b, gain, reason: `3-cycle: (${ar},${ac}) → (${br},${bc}) → (${cr},${cc})` });
+    }
+  }
   const unique = new Map<string, Suggestion>();
   for (const suggestion of suggestions.sort((a, b) => b.gain - a.gain)) {
-    const key = [suggestion.a, suggestion.b].sort((a, b) => a - b).join("-"); if (!unique.has(key)) unique.set(key, suggestion);
+    const key = [suggestion.a, suggestion.b].sort((a, b) => a - b).join("-") + "|" + suggestion.reason.slice(0, 4);
+    if (!unique.has(key)) unique.set(key, suggestion);
   }
-  return [...unique.values()].slice(0, 6);
+  return [...unique.values()].slice(0, 8);
 }
 function adjacencySet(order: number[], tiles: Tile[], rows: number, cols: number) {
   const values = new Set<string>();
