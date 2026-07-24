@@ -278,7 +278,7 @@ function mutate(order: number[], costs: PairCosts, rows: number, cols: number) {
   return child;
 }
 async function evolve(seeds: EngineResult[], tiles: Tile[], rows: number, cols: number, deep: boolean, stage: (value: string) => void, progress: (value: number) => void) {
-  const generations = deep ? 10 : 5, populationSize = deep ? 34 : 20;
+  const generations = deep ? 16 : 7, populationSize = deep ? 48 : 24;
   let population = seeds.slice(0, populationSize);
   for (let generation = 0; generation < generations; generation++) {
     stage(`Evolution generation ${generation + 1} of ${generations}`);
