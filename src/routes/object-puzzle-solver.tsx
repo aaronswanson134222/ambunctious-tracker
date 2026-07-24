@@ -447,7 +447,7 @@ function ObjectPuzzleSolver() {
     const finished: Candidate[] = [];
     for (let i = 0; i < diverse.length; i++) {
       const candidate = diverse[i];
-      finished.push({ order: candidate.order, score: candidateConsensusScore(candidate, results, ranks), label: `${ENGINES[candidate.engine].label} + evolution`, confidence: confidenceFor(candidate.order, pool, rows, cols), preview: await renderBoard(extractedTiles, candidate.order, rows, cols, tileW, tileH) });
+      finished.push({ order: candidate.order, score: candidateConsensusScore(candidate, results, ranks, rows, cols), label: `${ENGINES[candidate.engine].label} + evolution`, confidence: confidenceFor(candidate.order, pool, rows, cols), preview: await renderBoard(extractedTiles, candidate.order, rows, cols, tileW, tileH) });
     }
     return { finished, primaryCosts: diverse[0]?.costs || results[0].costs };
   }
