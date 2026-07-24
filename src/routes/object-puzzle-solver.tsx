@@ -501,19 +501,30 @@ function ObjectPuzzleSolver() {
     if (!costs || !order.length) return;
     setSolving(true); setError(""); setStage("Focused re-solve of uncertain tiles"); setProgress(5); setPendingCorrection(null);
     try {
-      const count = Math.min(order.length, Math.max(4, deep ? 10 : 7));
+      const count = Math.min(order.length, Math.max(6, deep ? 14 : 9));
       const unlocked = new Set(confidence.map((value, index) => ({ value, index })).sort((a, b) => a.value - b.value).slice(0, count).map((x) => x.index));
+      const iterations = deep ? 56 : 22;
       const attempts: EngineResult[] = [];
-      for (let i = 0; i < (deep ? 28 : 14); i++) {
+      for (let i = 0; i < iterations; i++) {
         let mutated = order.slice();
         const positions = [...unlocked];
-        for (let j = 0; j < 1 + Math.floor(Math.random() * 3); j++) {
-          const a = positions[Math.floor(Math.random() * positions.length)], b = positions[Math.floor(Math.random() * positions.length)];
-          [mutated[a], mutated[b]] = [mutated[b], mutated[a]];
+        // Mix of pair swaps and 3-cycles among uncertain positions
+        const moves = 1 + Math.floor(Math.random() * 4);
+        for (let j = 0; j < moves; j++) {
+          if (Math.random() < 0.7 || positions.length < 3) {
+            const a = positions[Math.floor(Math.random() * positions.length)], b = positions[Math.floor(Math.random() * positions.length)];
+            [mutated[a], mutated[b]] = [mutated[b], mutated[a]];
+          } else {
+            const a = positions[Math.floor(Math.random() * positions.length)];
+            const b = positions[Math.floor(Math.random() * positions.length)];
+            const c = positions[Math.floor(Math.random() * positions.length)];
+            const va = mutated[a], vb = mutated[b], vc = mutated[c];
+            mutated[a] = vb; mutated[b] = vc; mutated[c] = va;
+          }
         }
-        const refined = await localRefine(mutated, costs, tiles, rows, cols, 1, deep ? 16 : 8, unlocked);
+        const refined = await localRefine(mutated, costs, tiles, rows, cols, 1, deep ? 24 : 12, unlocked);
         attempts.push({ ...refined, engine: 0, costs });
-        setProgress(5 + Math.round((i + 1) / (deep ? 28 : 14) * 90));
+        setProgress(5 + Math.round((i + 1) / iterations * 90));
       }
       const merged = attempts.sort((a, b) => a.score - b.score);
       const pool = merged.map((x) => x.order);
