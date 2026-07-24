@@ -161,7 +161,8 @@ function rawSeam(a: Tile, b: Tile, direction: Direction) {
 function pairKey(a: Tile, b: Tile, direction: Direction) { return `${direction}:${a.signature}>${b.signature}`; }
 function learnedPairAdjustment(a: Tile, b: Tile, direction: Direction, profile: LearningProfile) {
   const key = pairKey(a, b, direction);
-  return (profile.rejectedNeighbourPairs[key] || 0) * 90 - (profile.acceptedNeighbourPairs[key] || 0) * 90;
+  const scale = 90 + Math.min(180, profile.correctionCount * 6);
+  return (profile.rejectedNeighbourPairs[key] || 0) * scale - (profile.acceptedNeighbourPairs[key] || 0) * scale;
 }
 function adjustedWeights(base: EngineWeights, profile: LearningProfile): EngineWeights {
   return {
@@ -204,7 +205,7 @@ function boardScore(order: number[], costs: PairCosts, rows: number, cols: numbe
   return score;
 }
 async function beamSolve(costs: PairCosts, rows: number, cols: number, deep: boolean, progress: (value: number) => void, offset: number, span: number) {
-  const n = rows * cols, width = deep ? 3600 : 1350, branch = deep ? 16 : 9;
+  const n = rows * cols, width = deep ? 5200 : 1800, branch = deep ? 22 : 11;
   let beam: { order: number[]; used: bigint; cost: number }[] = [{ order: [], used: 0n, cost: 0 }];
   for (let pos = 0; pos < n; pos++) {
     const r = Math.floor(pos / cols), c = pos % cols, next: typeof beam = [];
@@ -277,7 +278,7 @@ function mutate(order: number[], costs: PairCosts, rows: number, cols: number) {
   return child;
 }
 async function evolve(seeds: EngineResult[], tiles: Tile[], rows: number, cols: number, deep: boolean, stage: (value: string) => void, progress: (value: number) => void) {
-  const generations = deep ? 10 : 5, populationSize = deep ? 34 : 20;
+  const generations = deep ? 16 : 7, populationSize = deep ? 48 : 24;
   let population = seeds.slice(0, populationSize);
   for (let generation = 0; generation < generations; generation++) {
     stage(`Evolution generation ${generation + 1} of ${generations}`);
@@ -331,9 +332,31 @@ function normalisedRank(results: EngineResult[]) {
   }
   return ranks;
 }
-function candidateConsensusScore(candidate: EngineResult, all: EngineResult[], rank: Map<EngineResult, number>) {
+function seamMargin(order: number[], costs: PairCosts, rows: number, cols: number) {
+  let margin = 0, count = 0;
+  const n = order.length;
+  for (let i = 0; i < n; i++) {
+    const r = Math.floor(i / cols), c = i % cols;
+    if (c < cols - 1) {
+      const chosen = costs.right[order[i]][order[i + 1]];
+      let second = Infinity;
+      for (let j = 0; j < n; j++) if (j !== order[i + 1]) second = Math.min(second, costs.right[order[i]][j]);
+      if (Number.isFinite(second)) { margin += Math.max(0, second - chosen); count++; }
+    }
+    if (r < rows - 1) {
+      const chosen = costs.down[order[i]][order[i + cols]];
+      let second = Infinity;
+      for (let j = 0; j < n; j++) if (j !== order[i + cols]) second = Math.min(second, costs.down[order[i]][j]);
+      if (Number.isFinite(second)) { margin += Math.max(0, second - chosen); count++; }
+    }
+  }
+  return margin / Math.max(1, count);
+}
+function candidateConsensusScore(candidate: EngineResult, all: EngineResult[], rank: Map<EngineResult, number>, rows: number, cols: number) {
   const close = all.filter((other) => boardDistance(candidate.order, other.order) < .26).length / Math.max(1, all.length);
-  return (rank.get(candidate) || 0) * .62 + (1 - close) * .38;
+  const margin = seamMargin(candidate.order, candidate.costs, rows, cols);
+  const marginTerm = 1 / (1 + margin / 40);
+  return (rank.get(candidate) || 0) * .5 + (1 - close) * .28 + marginTerm * .22;
 }
 async function renderBoard(tiles: Tile[], order: number[], rows: number, cols: number, tileW: number, tileH: number) {
   const canvas = document.createElement("canvas"); canvas.width = cols * tileW; canvas.height = rows * tileH;
@@ -344,19 +367,37 @@ async function renderBoard(tiles: Tile[], order: number[], rows: number, cols: n
 }
 function suggestionsFor(order: number[], costs: PairCosts, tiles: Tile[], rows: number, cols: number, confidence: number[]) {
   const current = boardScore(order, costs, rows, cols, tiles, 1);
-  const suspicious = confidence.map((value, index) => ({ value, index })).sort((a, b) => a.value - b.value).slice(0, Math.min(8, order.length)).map((entry) => entry.index);
+  const suspicious = confidence.map((value, index) => ({ value, index })).sort((a, b) => a.value - b.value).slice(0, Math.min(10, order.length)).map((entry) => entry.index);
+  const weightOf = (i: number) => 1 + Math.max(0, 100 - (confidence[i] || 0)) / 55;
   const suggestions: Suggestion[] = [];
   for (const a of suspicious) for (let b = 0; b < order.length; b++) if (a !== b) {
     const next = order.slice(); [next[a], next[b]] = [next[b], next[a]];
-    const gain = current - boardScore(next, costs, rows, cols, tiles, 1);
+    const rawGain = current - boardScore(next, costs, rows, cols, tiles, 1);
+    if (rawGain <= 0) continue;
+    const gain = rawGain * ((weightOf(a) + weightOf(b)) / 2);
     const ar = Math.floor(a / cols) + 1, ac = a % cols + 1, br = Math.floor(b / cols) + 1, bc = b % cols + 1;
     suggestions.push({ a, b, gain, reason: `Swap row ${ar}, column ${ac} with row ${br}, column ${bc}` });
   }
+  for (let i = 0; i < suspicious.length; i++) for (let j = i + 1; j < suspicious.length; j++) for (let k = j + 1; k < suspicious.length; k++) {
+    const a = suspicious[i], b = suspicious[j], c = suspicious[k];
+    for (const perm of [[b, c, a], [c, a, b]] as const) {
+      const next = order.slice();
+      next[a] = order[perm[0]]; next[b] = order[perm[1]]; next[c] = order[perm[2]];
+      const rawGain = current - boardScore(next, costs, rows, cols, tiles, 1);
+      if (rawGain <= 0) continue;
+      const gain = rawGain * ((weightOf(a) + weightOf(b) + weightOf(c)) / 3) * 0.9;
+      const ar = Math.floor(a / cols) + 1, ac = a % cols + 1;
+      const br = Math.floor(b / cols) + 1, bc = b % cols + 1;
+      const cr = Math.floor(c / cols) + 1, cc = c % cols + 1;
+      suggestions.push({ a, b, gain, reason: `3-cycle: (${ar},${ac}) → (${br},${bc}) → (${cr},${cc})` });
+    }
+  }
   const unique = new Map<string, Suggestion>();
   for (const suggestion of suggestions.sort((a, b) => b.gain - a.gain)) {
-    const key = [suggestion.a, suggestion.b].sort((a, b) => a - b).join("-"); if (!unique.has(key)) unique.set(key, suggestion);
+    const key = [suggestion.a, suggestion.b].sort((a, b) => a - b).join("-") + "|" + suggestion.reason.slice(0, 4);
+    if (!unique.has(key)) unique.set(key, suggestion);
   }
-  return [...unique.values()].slice(0, 6);
+  return [...unique.values()].slice(0, 8);
 }
 function adjacencySet(order: number[], tiles: Tile[], rows: number, cols: number) {
   const values = new Set<string>();
@@ -414,7 +455,7 @@ function ObjectPuzzleSolver() {
   }
   async function finishCandidates(results: EngineResult[], extractedTiles: Tile[], tileW: number, tileH: number) {
     const ranks = normalisedRank(results);
-    const sorted = [...results].sort((a, b) => candidateConsensusScore(a, results, ranks) - candidateConsensusScore(b, results, ranks));
+    const sorted = [...results].sort((a, b) => candidateConsensusScore(a, results, ranks, rows, cols) - candidateConsensusScore(b, results, ranks, rows, cols));
     const diverse: EngineResult[] = [];
     for (const candidate of sorted) {
       if (diverse.every((existing) => boardDistance(candidate.order, existing.order) > .1)) diverse.push(candidate);
@@ -424,7 +465,7 @@ function ObjectPuzzleSolver() {
     const finished: Candidate[] = [];
     for (let i = 0; i < diverse.length; i++) {
       const candidate = diverse[i];
-      finished.push({ order: candidate.order, score: candidateConsensusScore(candidate, results, ranks), label: `${ENGINES[candidate.engine].label} + evolution`, confidence: confidenceFor(candidate.order, pool, rows, cols), preview: await renderBoard(extractedTiles, candidate.order, rows, cols, tileW, tileH) });
+      finished.push({ order: candidate.order, score: candidateConsensusScore(candidate, results, ranks, rows, cols), label: `${ENGINES[candidate.engine].label} + evolution`, confidence: confidenceFor(candidate.order, pool, rows, cols), preview: await renderBoard(extractedTiles, candidate.order, rows, cols, tileW, tileH) });
     }
     return { finished, primaryCosts: diverse[0]?.costs || results[0].costs };
   }
@@ -460,19 +501,30 @@ function ObjectPuzzleSolver() {
     if (!costs || !order.length) return;
     setSolving(true); setError(""); setStage("Focused re-solve of uncertain tiles"); setProgress(5); setPendingCorrection(null);
     try {
-      const count = Math.min(order.length, Math.max(4, deep ? 10 : 7));
+      const count = Math.min(order.length, Math.max(6, deep ? 14 : 9));
       const unlocked = new Set(confidence.map((value, index) => ({ value, index })).sort((a, b) => a.value - b.value).slice(0, count).map((x) => x.index));
+      const iterations = deep ? 56 : 22;
       const attempts: EngineResult[] = [];
-      for (let i = 0; i < (deep ? 28 : 14); i++) {
+      for (let i = 0; i < iterations; i++) {
         let mutated = order.slice();
         const positions = [...unlocked];
-        for (let j = 0; j < 1 + Math.floor(Math.random() * 3); j++) {
-          const a = positions[Math.floor(Math.random() * positions.length)], b = positions[Math.floor(Math.random() * positions.length)];
-          [mutated[a], mutated[b]] = [mutated[b], mutated[a]];
+        // Mix of pair swaps and 3-cycles among uncertain positions
+        const moves = 1 + Math.floor(Math.random() * 4);
+        for (let j = 0; j < moves; j++) {
+          if (Math.random() < 0.7 || positions.length < 3) {
+            const a = positions[Math.floor(Math.random() * positions.length)], b = positions[Math.floor(Math.random() * positions.length)];
+            [mutated[a], mutated[b]] = [mutated[b], mutated[a]];
+          } else {
+            const a = positions[Math.floor(Math.random() * positions.length)];
+            const b = positions[Math.floor(Math.random() * positions.length)];
+            const c = positions[Math.floor(Math.random() * positions.length)];
+            const va = mutated[a], vb = mutated[b], vc = mutated[c];
+            mutated[a] = vb; mutated[b] = vc; mutated[c] = va;
+          }
         }
-        const refined = await localRefine(mutated, costs, tiles, rows, cols, 1, deep ? 16 : 8, unlocked);
+        const refined = await localRefine(mutated, costs, tiles, rows, cols, 1, deep ? 24 : 12, unlocked);
         attempts.push({ ...refined, engine: 0, costs });
-        setProgress(5 + Math.round((i + 1) / (deep ? 28 : 14) * 90));
+        setProgress(5 + Math.round((i + 1) / iterations * 90));
       }
       const merged = attempts.sort((a, b) => a.score - b.score);
       const pool = merged.map((x) => x.order);
