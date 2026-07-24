@@ -332,9 +332,31 @@ function normalisedRank(results: EngineResult[]) {
   }
   return ranks;
 }
-function candidateConsensusScore(candidate: EngineResult, all: EngineResult[], rank: Map<EngineResult, number>) {
+function seamMargin(order: number[], costs: PairCosts, rows: number, cols: number) {
+  let margin = 0, count = 0;
+  const n = order.length;
+  for (let i = 0; i < n; i++) {
+    const r = Math.floor(i / cols), c = i % cols;
+    if (c < cols - 1) {
+      const chosen = costs.right[order[i]][order[i + 1]];
+      let second = Infinity;
+      for (let j = 0; j < n; j++) if (j !== order[i + 1]) second = Math.min(second, costs.right[order[i]][j]);
+      if (Number.isFinite(second)) { margin += Math.max(0, second - chosen); count++; }
+    }
+    if (r < rows - 1) {
+      const chosen = costs.down[order[i]][order[i + cols]];
+      let second = Infinity;
+      for (let j = 0; j < n; j++) if (j !== order[i + cols]) second = Math.min(second, costs.down[order[i]][j]);
+      if (Number.isFinite(second)) { margin += Math.max(0, second - chosen); count++; }
+    }
+  }
+  return margin / Math.max(1, count);
+}
+function candidateConsensusScore(candidate: EngineResult, all: EngineResult[], rank: Map<EngineResult, number>, rows: number, cols: number) {
   const close = all.filter((other) => boardDistance(candidate.order, other.order) < .26).length / Math.max(1, all.length);
-  return (rank.get(candidate) || 0) * .62 + (1 - close) * .38;
+  const margin = seamMargin(candidate.order, candidate.costs, rows, cols);
+  const marginTerm = 1 / (1 + margin / 40);
+  return (rank.get(candidate) || 0) * .5 + (1 - close) * .28 + marginTerm * .22;
 }
 async function renderBoard(tiles: Tile[], order: number[], rows: number, cols: number, tileW: number, tileH: number) {
   const canvas = document.createElement("canvas"); canvas.width = cols * tileW; canvas.height = rows * tileH;
