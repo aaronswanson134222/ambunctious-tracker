@@ -9,39 +9,30 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as IndexRouteImport } from './routes/index'
-import { Route as BotConnectionsRouteImport } from './routes/bot-connections'
-import { Route as MenuRouteImport } from './routes/menu'
-import { Route as PrivateAlertsRouteImport } from './routes/private-alerts'
 import { Route as PuzzleSolverRouteImport } from './routes/puzzle-solver'
-import { Route as ApiAuthPinRouteImport } from './routes/api/auth/pin'
-import { Route as ApiBotConnectionsStatusRouteImport } from './routes/api/bot-connections/status'
-import { Route as ApiBotConnectionsTestDmRouteImport } from './routes/api/bot-connections/test-dm'
-import { Route as ApiPrivateAlertsSettingsRouteImport } from './routes/api/private-alerts/settings'
-import { Route as ApiPublicBigGamesDmRouteImport } from './routes/api/public/big-games-dm'
-import { Route as ApiPublicBigGamesXRouteImport } from './routes/api/public/big-games-x'
-import { Route as ApiPublicHourlySummaryRouteImport } from './routes/api/public/hourly-summary'
-import { Route as ApiPublicMirrorDmsRouteImport } from './routes/api/public/mirror-dms'
-import { Route as ApiPublicRunChecksRouteImport } from './routes/api/public/run-checks'
-import { Route as ApiPuzzleSolveRouteImport } from './routes/api/puzzle/solve'
-import { Route as ApiRobloxExperiencesRouteImport } from './routes/api/roblox/experiences'
-import { Route as ApiRobloxForceCheckRouteImport } from './routes/api/roblox/force-check'
-import { Route as ApiRobloxKeyRouteImport } from './routes/api/roblox/key'
+import { Route as PrivateAlertsRouteImport } from './routes/private-alerts'
+import { Route as ObjectPuzzleSolverRouteImport } from './routes/object-puzzle-solver'
+import { Route as MenuRouteImport } from './routes/menu'
+import { Route as BotConnectionsRouteImport } from './routes/bot-connections'
+import { Route as IndexRouteImport } from './routes/index'
 import { Route as ApiRobloxThumbnailsRouteImport } from './routes/api/roblox/thumbnails'
+import { Route as ApiRobloxKeyRouteImport } from './routes/api/roblox/key'
+import { Route as ApiRobloxForceCheckRouteImport } from './routes/api/roblox/force-check'
+import { Route as ApiRobloxExperiencesRouteImport } from './routes/api/roblox/experiences'
+import { Route as ApiPuzzleSolveRouteImport } from './routes/api/puzzle/solve'
+import { Route as ApiPublicRunChecksRouteImport } from './routes/api/public/run-checks'
+import { Route as ApiPublicMirrorDmsRouteImport } from './routes/api/public/mirror-dms'
+import { Route as ApiPublicHourlySummaryRouteImport } from './routes/api/public/hourly-summary'
+import { Route as ApiPublicBigGamesXRouteImport } from './routes/api/public/big-games-x'
+import { Route as ApiPublicBigGamesDmRouteImport } from './routes/api/public/big-games-dm'
+import { Route as ApiPrivateAlertsSettingsRouteImport } from './routes/api/private-alerts/settings'
+import { Route as ApiBotConnectionsTestDmRouteImport } from './routes/api/bot-connections/test-dm'
+import { Route as ApiBotConnectionsStatusRouteImport } from './routes/api/bot-connections/status'
+import { Route as ApiAuthPinRouteImport } from './routes/api/auth/pin'
 
-const IndexRoute = IndexRouteImport.update({
-  id: '/',
-  path: '/',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const BotConnectionsRoute = BotConnectionsRouteImport.update({
-  id: '/bot-connections',
-  path: '/bot-connections',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const MenuRoute = MenuRouteImport.update({
-  id: '/menu',
-  path: '/menu',
+const PuzzleSolverRoute = PuzzleSolverRouteImport.update({
+  id: '/puzzle-solver',
+  path: '/puzzle-solver',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PrivateAlertsRoute = PrivateAlertsRouteImport.update({
@@ -49,24 +40,74 @@ const PrivateAlertsRoute = PrivateAlertsRouteImport.update({
   path: '/private-alerts',
   getParentRoute: () => rootRouteImport,
 } as any)
-const PuzzleSolverRoute = PuzzleSolverRouteImport.update({
-  id: '/puzzle-solver',
-  path: '/puzzle-solver',
+const ObjectPuzzleSolverRoute = ObjectPuzzleSolverRouteImport.update({
+  id: '/object-puzzle-solver',
+  path: '/object-puzzle-solver',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiAuthPinRoute = ApiAuthPinRouteImport.update({
-  id: '/api/auth/pin',
-  path: '/api/auth/pin',
+const MenuRoute = MenuRouteImport.update({
+  id: '/menu',
+  path: '/menu',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiBotConnectionsStatusRoute = ApiBotConnectionsStatusRouteImport.update({
-  id: '/api/bot-connections/status',
-  path: '/api/bot-connections/status',
+const BotConnectionsRoute = BotConnectionsRouteImport.update({
+  id: '/bot-connections',
+  path: '/bot-connections',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiBotConnectionsTestDmRoute = ApiBotConnectionsTestDmRouteImport.update({
-  id: '/api/bot-connections/test-dm',
-  path: '/api/bot-connections/test-dm',
+const IndexRoute = IndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiRobloxThumbnailsRoute = ApiRobloxThumbnailsRouteImport.update({
+  id: '/api/roblox/thumbnails',
+  path: '/api/roblox/thumbnails',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiRobloxKeyRoute = ApiRobloxKeyRouteImport.update({
+  id: '/api/roblox/key',
+  path: '/api/roblox/key',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiRobloxForceCheckRoute = ApiRobloxForceCheckRouteImport.update({
+  id: '/api/roblox/force-check',
+  path: '/api/roblox/force-check',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiRobloxExperiencesRoute = ApiRobloxExperiencesRouteImport.update({
+  id: '/api/roblox/experiences',
+  path: '/api/roblox/experiences',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPuzzleSolveRoute = ApiPuzzleSolveRouteImport.update({
+  id: '/api/puzzle/solve',
+  path: '/api/puzzle/solve',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPublicRunChecksRoute = ApiPublicRunChecksRouteImport.update({
+  id: '/api/public/run-checks',
+  path: '/api/public/run-checks',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPublicMirrorDmsRoute = ApiPublicMirrorDmsRouteImport.update({
+  id: '/api/public/mirror-dms',
+  path: '/api/public/mirror-dms',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPublicHourlySummaryRoute = ApiPublicHourlySummaryRouteImport.update({
+  id: '/api/public/hourly-summary',
+  path: '/api/public/hourly-summary',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPublicBigGamesXRoute = ApiPublicBigGamesXRouteImport.update({
+  id: '/api/public/big-games-x',
+  path: '/api/public/big-games-x',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPublicBigGamesDmRoute = ApiPublicBigGamesDmRouteImport.update({
+  id: '/api/public/big-games-dm',
+  path: '/api/public/big-games-dm',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiPrivateAlertsSettingsRoute =
@@ -75,54 +116,19 @@ const ApiPrivateAlertsSettingsRoute =
     path: '/api/private-alerts/settings',
     getParentRoute: () => rootRouteImport,
   } as any)
-const ApiPublicBigGamesDmRoute = ApiPublicBigGamesDmRouteImport.update({
-  id: '/api/public/big-games-dm',
-  path: '/api/public/big-games-dm',
+const ApiBotConnectionsTestDmRoute = ApiBotConnectionsTestDmRouteImport.update({
+  id: '/api/bot-connections/test-dm',
+  path: '/api/bot-connections/test-dm',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiPublicBigGamesXRoute = ApiPublicBigGamesXRouteImport.update({
-  id: '/api/public/big-games-x',
-  path: '/api/public/big-games-x',
+const ApiBotConnectionsStatusRoute = ApiBotConnectionsStatusRouteImport.update({
+  id: '/api/bot-connections/status',
+  path: '/api/bot-connections/status',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiPublicHourlySummaryRoute = ApiPublicHourlySummaryRouteImport.update({
-  id: '/api/public/hourly-summary',
-  path: '/api/public/hourly-summary',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiPublicMirrorDmsRoute = ApiPublicMirrorDmsRouteImport.update({
-  id: '/api/public/mirror-dms',
-  path: '/api/public/mirror-dms',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiPublicRunChecksRoute = ApiPublicRunChecksRouteImport.update({
-  id: '/api/public/run-checks',
-  path: '/api/public/run-checks',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiPuzzleSolveRoute = ApiPuzzleSolveRouteImport.update({
-  id: '/api/puzzle/solve',
-  path: '/api/puzzle/solve',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiRobloxExperiencesRoute = ApiRobloxExperiencesRouteImport.update({
-  id: '/api/roblox/experiences',
-  path: '/api/roblox/experiences',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiRobloxForceCheckRoute = ApiRobloxForceCheckRouteImport.update({
-  id: '/api/roblox/force-check',
-  path: '/api/roblox/force-check',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiRobloxKeyRoute = ApiRobloxKeyRouteImport.update({
-  id: '/api/roblox/key',
-  path: '/api/roblox/key',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiRobloxThumbnailsRoute = ApiRobloxThumbnailsRouteImport.update({
-  id: '/api/roblox/thumbnails',
-  path: '/api/roblox/thumbnails',
+const ApiAuthPinRoute = ApiAuthPinRouteImport.update({
+  id: '/api/auth/pin',
+  path: '/api/auth/pin',
   getParentRoute: () => rootRouteImport,
 } as any)
 
@@ -130,6 +136,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/bot-connections': typeof BotConnectionsRoute
   '/menu': typeof MenuRoute
+  '/object-puzzle-solver': typeof ObjectPuzzleSolverRoute
   '/private-alerts': typeof PrivateAlertsRoute
   '/puzzle-solver': typeof PuzzleSolverRoute
   '/api/auth/pin': typeof ApiAuthPinRoute
@@ -151,6 +158,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/bot-connections': typeof BotConnectionsRoute
   '/menu': typeof MenuRoute
+  '/object-puzzle-solver': typeof ObjectPuzzleSolverRoute
   '/private-alerts': typeof PrivateAlertsRoute
   '/puzzle-solver': typeof PuzzleSolverRoute
   '/api/auth/pin': typeof ApiAuthPinRoute
@@ -173,6 +181,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/bot-connections': typeof BotConnectionsRoute
   '/menu': typeof MenuRoute
+  '/object-puzzle-solver': typeof ObjectPuzzleSolverRoute
   '/private-alerts': typeof PrivateAlertsRoute
   '/puzzle-solver': typeof PuzzleSolverRoute
   '/api/auth/pin': typeof ApiAuthPinRoute
@@ -196,6 +205,7 @@ export interface FileRouteTypes {
     | '/'
     | '/bot-connections'
     | '/menu'
+    | '/object-puzzle-solver'
     | '/private-alerts'
     | '/puzzle-solver'
     | '/api/auth/pin'
@@ -217,6 +227,7 @@ export interface FileRouteTypes {
     | '/'
     | '/bot-connections'
     | '/menu'
+    | '/object-puzzle-solver'
     | '/private-alerts'
     | '/puzzle-solver'
     | '/api/auth/pin'
@@ -238,6 +249,7 @@ export interface FileRouteTypes {
     | '/'
     | '/bot-connections'
     | '/menu'
+    | '/object-puzzle-solver'
     | '/private-alerts'
     | '/puzzle-solver'
     | '/api/auth/pin'
@@ -260,6 +272,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   BotConnectionsRoute: typeof BotConnectionsRoute
   MenuRoute: typeof MenuRoute
+  ObjectPuzzleSolverRoute: typeof ObjectPuzzleSolverRoute
   PrivateAlertsRoute: typeof PrivateAlertsRoute
   PuzzleSolverRoute: typeof PuzzleSolverRoute
   ApiAuthPinRoute: typeof ApiAuthPinRoute
@@ -280,25 +293,11 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/': {
-      id: '/'
-      path: '/'
-      fullPath: '/'
-      preLoaderRoute: typeof IndexRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/bot-connections': {
-      id: '/bot-connections'
-      path: '/bot-connections'
-      fullPath: '/bot-connections'
-      preLoaderRoute: typeof BotConnectionsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/menu': {
-      id: '/menu'
-      path: '/menu'
-      fullPath: '/menu'
-      preLoaderRoute: typeof MenuRouteImport
+    '/puzzle-solver': {
+      id: '/puzzle-solver'
+      path: '/puzzle-solver'
+      fullPath: '/puzzle-solver'
+      preLoaderRoute: typeof PuzzleSolverRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/private-alerts': {
@@ -308,102 +307,32 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PrivateAlertsRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/puzzle-solver': {
-      id: '/puzzle-solver'
-      path: '/puzzle-solver'
-      fullPath: '/puzzle-solver'
-      preLoaderRoute: typeof PuzzleSolverRouteImport
+    '/object-puzzle-solver': {
+      id: '/object-puzzle-solver'
+      path: '/object-puzzle-solver'
+      fullPath: '/object-puzzle-solver'
+      preLoaderRoute: typeof ObjectPuzzleSolverRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/auth/pin': {
-      id: '/api/auth/pin'
-      path: '/api/auth/pin'
-      fullPath: '/api/auth/pin'
-      preLoaderRoute: typeof ApiAuthPinRouteImport
+    '/menu': {
+      id: '/menu'
+      path: '/menu'
+      fullPath: '/menu'
+      preLoaderRoute: typeof MenuRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/bot-connections/status': {
-      id: '/api/bot-connections/status'
-      path: '/api/bot-connections/status'
-      fullPath: '/api/bot-connections/status'
-      preLoaderRoute: typeof ApiBotConnectionsStatusRouteImport
+    '/bot-connections': {
+      id: '/bot-connections'
+      path: '/bot-connections'
+      fullPath: '/bot-connections'
+      preLoaderRoute: typeof BotConnectionsRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/bot-connections/test-dm': {
-      id: '/api/bot-connections/test-dm'
-      path: '/api/bot-connections/test-dm'
-      fullPath: '/api/bot-connections/test-dm'
-      preLoaderRoute: typeof ApiBotConnectionsTestDmRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/private-alerts/settings': {
-      id: '/api/private-alerts/settings'
-      path: '/api/private-alerts/settings'
-      fullPath: '/api/private-alerts/settings'
-      preLoaderRoute: typeof ApiPrivateAlertsSettingsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/public/big-games-dm': {
-      id: '/api/public/big-games-dm'
-      path: '/api/public/big-games-dm'
-      fullPath: '/api/public/big-games-dm'
-      preLoaderRoute: typeof ApiPublicBigGamesDmRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/public/big-games-x': {
-      id: '/api/public/big-games-x'
-      path: '/api/public/big-games-x'
-      fullPath: '/api/public/big-games-x'
-      preLoaderRoute: typeof ApiPublicBigGamesXRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/public/hourly-summary': {
-      id: '/api/public/hourly-summary'
-      path: '/api/public/hourly-summary'
-      fullPath: '/api/public/hourly-summary'
-      preLoaderRoute: typeof ApiPublicHourlySummaryRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/public/mirror-dms': {
-      id: '/api/public/mirror-dms'
-      path: '/api/public/mirror-dms'
-      fullPath: '/api/public/mirror-dms'
-      preLoaderRoute: typeof ApiPublicMirrorDmsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/public/run-checks': {
-      id: '/api/public/run-checks'
-      path: '/api/public/run-checks'
-      fullPath: '/api/public/run-checks'
-      preLoaderRoute: typeof ApiPublicRunChecksRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/puzzle/solve': {
-      id: '/api/puzzle/solve'
-      path: '/api/puzzle/solve'
-      fullPath: '/api/puzzle/solve'
-      preLoaderRoute: typeof ApiPuzzleSolveRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/roblox/experiences': {
-      id: '/api/roblox/experiences'
-      path: '/api/roblox/experiences'
-      fullPath: '/api/roblox/experiences'
-      preLoaderRoute: typeof ApiRobloxExperiencesRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/roblox/force-check': {
-      id: '/api/roblox/force-check'
-      path: '/api/roblox/force-check'
-      fullPath: '/api/roblox/force-check'
-      preLoaderRoute: typeof ApiRobloxForceCheckRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/roblox/key': {
-      id: '/api/roblox/key'
-      path: '/api/roblox/key'
-      fullPath: '/api/roblox/key'
-      preLoaderRoute: typeof ApiRobloxKeyRouteImport
+    '/': {
+      id: '/'
+      path: '/'
+      fullPath: '/'
+      preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/roblox/thumbnails': {
@@ -413,6 +342,97 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiRobloxThumbnailsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/roblox/key': {
+      id: '/api/roblox/key'
+      path: '/api/roblox/key'
+      fullPath: '/api/roblox/key'
+      preLoaderRoute: typeof ApiRobloxKeyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/roblox/force-check': {
+      id: '/api/roblox/force-check'
+      path: '/api/roblox/force-check'
+      fullPath: '/api/roblox/force-check'
+      preLoaderRoute: typeof ApiRobloxForceCheckRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/roblox/experiences': {
+      id: '/api/roblox/experiences'
+      path: '/api/roblox/experiences'
+      fullPath: '/api/roblox/experiences'
+      preLoaderRoute: typeof ApiRobloxExperiencesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/puzzle/solve': {
+      id: '/api/puzzle/solve'
+      path: '/api/puzzle/solve'
+      fullPath: '/api/puzzle/solve'
+      preLoaderRoute: typeof ApiPuzzleSolveRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/run-checks': {
+      id: '/api/public/run-checks'
+      path: '/api/public/run-checks'
+      fullPath: '/api/public/run-checks'
+      preLoaderRoute: typeof ApiPublicRunChecksRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/mirror-dms': {
+      id: '/api/public/mirror-dms'
+      path: '/api/public/mirror-dms'
+      fullPath: '/api/public/mirror-dms'
+      preLoaderRoute: typeof ApiPublicMirrorDmsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/hourly-summary': {
+      id: '/api/public/hourly-summary'
+      path: '/api/public/hourly-summary'
+      fullPath: '/api/public/hourly-summary'
+      preLoaderRoute: typeof ApiPublicHourlySummaryRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/big-games-x': {
+      id: '/api/public/big-games-x'
+      path: '/api/public/big-games-x'
+      fullPath: '/api/public/big-games-x'
+      preLoaderRoute: typeof ApiPublicBigGamesXRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/big-games-dm': {
+      id: '/api/public/big-games-dm'
+      path: '/api/public/big-games-dm'
+      fullPath: '/api/public/big-games-dm'
+      preLoaderRoute: typeof ApiPublicBigGamesDmRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/private-alerts/settings': {
+      id: '/api/private-alerts/settings'
+      path: '/api/private-alerts/settings'
+      fullPath: '/api/private-alerts/settings'
+      preLoaderRoute: typeof ApiPrivateAlertsSettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/bot-connections/test-dm': {
+      id: '/api/bot-connections/test-dm'
+      path: '/api/bot-connections/test-dm'
+      fullPath: '/api/bot-connections/test-dm'
+      preLoaderRoute: typeof ApiBotConnectionsTestDmRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/bot-connections/status': {
+      id: '/api/bot-connections/status'
+      path: '/api/bot-connections/status'
+      fullPath: '/api/bot-connections/status'
+      preLoaderRoute: typeof ApiBotConnectionsStatusRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/auth/pin': {
+      id: '/api/auth/pin'
+      path: '/api/auth/pin'
+      fullPath: '/api/auth/pin'
+      preLoaderRoute: typeof ApiAuthPinRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -420,6 +440,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   BotConnectionsRoute: BotConnectionsRoute,
   MenuRoute: MenuRoute,
+  ObjectPuzzleSolverRoute: ObjectPuzzleSolverRoute,
   PrivateAlertsRoute: PrivateAlertsRoute,
   PuzzleSolverRoute: PuzzleSolverRoute,
   ApiAuthPinRoute: ApiAuthPinRoute,
@@ -440,3 +461,13 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}
