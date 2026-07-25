@@ -116,6 +116,12 @@ function Index() {
   const [savingRobloxKey, setSavingRobloxKey] = useState(false);
   const [forcingRoblox, setForcingRoblox] = useState<string | null>(null);
   const [forcedRobloxItems, setForcedRobloxItems] = useState<Record<string, ForcedRobloxItem>>({});
+  const [detailsInput, setDetailsInput] = useState<ProductDetailsInput | null>(null);
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  function openProductDetails(input: ProductDetailsInput) {
+    setDetailsInput(input);
+    setDetailsOpen(true);
+  }
   const [running, setRunning] = useState(false);
   const [scanSeconds, setScanSeconds] = useState(SCAN_INTERVAL_SECONDS);
   const [loading, setLoading] = useState(true);
