@@ -975,15 +975,26 @@ function ExperienceItemsPanel({ items, lookbackDays, placeId, universeId, experi
                     {item.createdAt ? ` · ${new Date(item.createdAt).toLocaleDateString()}` : ""}
                   </p>
                 </div>
-                <a
-                  href={item.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex shrink-0 items-center gap-1 rounded-md border border-white/10 px-2 py-1 text-xs font-medium hover:border-primary/50 hover:text-primary"
-                  title={isPass ? "Open game pass page" : "Open experience store page (Roblox has no public developer-product detail page)"}
-                >
-                  View on Roblox <ExternalLink size={12} />
-                </a>
+                {isPass ? (
+                  <a
+                    href={item.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex shrink-0 items-center gap-1 rounded-md border border-white/10 px-2 py-1 text-xs font-medium hover:border-primary/50 hover:text-primary"
+                    title="Open game pass page"
+                  >
+                    View on Roblox <ExternalLink size={12} />
+                  </a>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => onOpenDetails({ productId: item.id, kind: "developer_product", universeId, placeId, fallbackName: item.name, fallbackCreatedAt: item.createdAt ?? null, experienceLabel })}
+                    className="inline-flex shrink-0 items-center gap-1 rounded-md border border-primary/40 bg-primary/10 px-2 py-1 text-xs font-medium hover:border-primary hover:bg-primary/20"
+                    title="Open developer product details"
+                  >
+                    View details
+                  </button>
+                )}
               </div>
             );
           })}
