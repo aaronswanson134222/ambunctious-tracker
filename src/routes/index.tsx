@@ -734,15 +734,24 @@ function Index() {
                               {forcedRobloxItems[r.id].id ? (
                                 <span className="text-xs text-muted-foreground">#{forcedRobloxItems[r.id].id}</span>
                               ) : null}
-                              <a
-                                href={forcedRobloxItems[r.id].url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="inline-flex items-center gap-1 rounded-md border border-white/10 px-2 py-1 text-xs font-medium hover:border-primary/50 hover:text-primary"
-                                title={forcedRobloxItems[r.id].kind === "game_pass" ? "Open game pass page" : "Open experience store page (Roblox has no public developer-product detail page)"}
-                              >
-                                View on Roblox <ExternalLink size={12} />
-                              </a>
+                              {forcedRobloxItems[r.id].kind === "developer_product" ? (
+                                <button
+                                  type="button"
+                                  onClick={() => openProductDetails({ productId: forcedRobloxItems[r.id].id, kind: "developer_product", universeId: null, placeId: null, fallbackName: forcedRobloxItems[r.id].name, experienceLabel: r.label })}
+                                  className="inline-flex items-center gap-1 rounded-md border border-primary/40 bg-primary/10 px-2 py-1 text-xs font-medium hover:border-primary hover:bg-primary/20"
+                                >
+                                  View details
+                                </button>
+                              ) : (
+                                <a
+                                  href={forcedRobloxItems[r.id].url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center gap-1 rounded-md border border-white/10 px-2 py-1 text-xs font-medium hover:border-primary/50 hover:text-primary"
+                                >
+                                  View on Roblox <ExternalLink size={12} />
+                                </a>
+                              )}
                             </div>
                           )}
 
