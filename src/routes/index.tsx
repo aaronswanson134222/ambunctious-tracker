@@ -833,7 +833,7 @@ async function fetchRobloxThumbs(
   return out;
 }
 
-function ExperienceItemsPanel({ items, lookbackDays }: { items: ExperienceProductItem[]; lookbackDays: number }) {
+function ExperienceItemsPanel({ items, lookbackDays, placeId, universeId, experienceLabel, onOpenDetails }: { items: ExperienceProductItem[]; lookbackDays: number; placeId: number; universeId: number; experienceLabel: string; onOpenDetails: (input: ProductDetailsInput) => void }) {
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState<"all" | "game_pass" | "developer_product">("all");
   const [sortBy, setSortBy] = useState<"newest" | "oldest" | "name">("newest");
