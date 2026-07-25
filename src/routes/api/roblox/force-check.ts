@@ -118,6 +118,7 @@ export const Route = createFileRoute("/api/roblox/force-check")({
           return json({
             found: true,
             item: {
+              id: latest.id,
               name: latest.name,
               url: latest.url,
               kind: latest.kind,
@@ -125,6 +126,7 @@ export const Route = createFileRoute("/api/roblox/force-check")({
             },
             discord_sent: true,
           });
+
         } catch (error) {
           const message = error instanceof Error ? error.message : String(error);
           await db.from("tracked_roblox_entities").update({

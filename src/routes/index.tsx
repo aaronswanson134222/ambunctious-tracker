@@ -54,7 +54,9 @@ type ForcedRobloxItem = {
   url: string;
   kind: "game_pass" | "developer_product";
   createdAt: string | null;
+  id?: number;
 };
+
 
 function relativeTime(iso: string | null) {
   if (!iso) return "Not checked yet";
@@ -712,15 +714,31 @@ function Index() {
                           </div>
                           {!robloxKeyConfigured && <p className="text-xs text-amber-400">Connect the Roblox Open Cloud key to enable manual checks.</p>}
                           {forcedRobloxItems[r.id] && (
-                            <a
-                              className="flex items-center gap-1 text-sm text-primary hover:underline"
-                              href={forcedRobloxItems[r.id].url}
-                              target="_blank"
-                              rel="noreferrer"
-                            >
-                              Latest result: {forcedRobloxItems[r.id].name} <ExternalLink size={14} />
-                            </a>
+                            <div className="flex flex-wrap items-center gap-2 text-sm">
+                              <span className="text-muted-foreground">Latest result:</span>
+                              <a
+                                className="font-medium text-primary hover:underline"
+                                href={forcedRobloxItems[r.id].url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                              >
+                                {forcedRobloxItems[r.id].name}
+                              </a>
+                              {forcedRobloxItems[r.id].id ? (
+                                <span className="text-xs text-muted-foreground">#{forcedRobloxItems[r.id].id}</span>
+                              ) : null}
+                              <a
+                                href={forcedRobloxItems[r.id].url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1 rounded-md border border-white/10 px-2 py-1 text-xs font-medium hover:border-primary/50 hover:text-primary"
+                                title={forcedRobloxItems[r.id].kind === "game_pass" ? "Open game pass page" : "Open experience store page (Roblox has no public developer-product detail page)"}
+                              >
+                                View on Roblox <ExternalLink size={12} />
+                              </a>
+                            </div>
                           )}
+
                         </div>
                       )}
                     </div>
@@ -916,14 +934,17 @@ function ExperienceItemsPanel({ items, lookbackDays }: { items: ExperienceProduc
             const thumb = thumbs[`${item.kind}:${item.id}`];
             const isPass = item.kind === "game_pass";
             return (
-              <a
+              <div
                 key={item.key}
-                href={item.url}
-                target="_blank"
-                rel="noreferrer"
                 className="group flex items-center gap-3 rounded-lg border border-white/8 bg-card/40 p-2 hover:border-primary/40 hover:bg-card/70"
               >
-                <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-md border border-white/8 bg-background">
+                <a
+                  href={item.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-md border border-white/8 bg-background"
+                  aria-label={`Open ${item.name} on Roblox`}
+                >
                   {thumb ? (
                     <img src={thumb} alt="" loading="lazy" className="h-full w-full object-cover" />
                   ) : thumb === null ? (
@@ -931,19 +952,35 @@ function ExperienceItemsPanel({ items, lookbackDays }: { items: ExperienceProduc
                   ) : (
                     <LoaderCircle className="h-4 w-4 animate-spin text-muted-foreground" />
                   )}
-                </div>
+                </a>
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium group-hover:text-primary">{item.name}</p>
+                  <a
+                    href={item.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="block truncate text-sm font-medium hover:text-primary group-hover:text-primary"
+                  >
+                    {item.name}
+                  </a>
                   <p className="truncate text-[11px] uppercase tracking-wide text-muted-foreground">
                     {isPass ? <><Package className="mr-1 inline h-3 w-3" />Game pass</> : <><ShoppingBag className="mr-1 inline h-3 w-3" />Dev product</>}
                     {" · #"}{item.id}
                     {item.createdAt ? ` · ${new Date(item.createdAt).toLocaleDateString()}` : ""}
                   </p>
                 </div>
-                <ExternalLink size={14} className="shrink-0 text-muted-foreground" />
-              </a>
+                <a
+                  href={item.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex shrink-0 items-center gap-1 rounded-md border border-white/10 px-2 py-1 text-xs font-medium hover:border-primary/50 hover:text-primary"
+                  title={isPass ? "Open game pass page" : "Open experience store page (Roblox has no public developer-product detail page)"}
+                >
+                  View on Roblox <ExternalLink size={12} />
+                </a>
+              </div>
             );
           })}
+
         </div>
       )}
     </div>
