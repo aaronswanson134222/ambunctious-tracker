@@ -775,7 +775,7 @@ function Index() {
                       <div className="flex min-w-0 items-center gap-3"><div className="tracker-avatar"><Gamepad2 /></div><div className="min-w-0"><a className="tracker-title" href={`https://www.roblox.com/games/${experience.place_id}`} target="_blank" rel="noreferrer">{experience.label} <ExternalLink /></a><p className="tracker-meta">PLACE #{experience.place_id} · UNIVERSE #{experience.universe_id} · Checked {relativeTime(experience.last_checked_at)}</p></div></div>
                       <StatusPill error={experience.last_error} checked={experience.last_checked_at} />
                     </div>
-                    <ExperienceItemsPanel items={items} lookbackDays={experience.lookback_days} />
+                    <ExperienceItemsPanel items={items} lookbackDays={experience.lookback_days} placeId={Number(experience.place_id)} universeId={Number(experience.universe_id)} experienceLabel={experience.label} onOpenDetails={openProductDetails} />
                     {experience.last_error && <p className="error-copy"><AlertTriangle /> {experience.last_error}</p>}
                     <div className="card-footer">
                       <span>Every 60 seconds · Complete pass inventory · Discord alerts for new uploads</span>
