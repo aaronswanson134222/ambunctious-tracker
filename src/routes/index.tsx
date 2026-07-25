@@ -15,6 +15,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import type { User } from "@supabase/supabase-js";
 import { AB_BANNER, AB_MARK } from "@/lib/brand-assets";
+import { ProductDetailsDialog, type ProductDetailsInput } from "@/components/roblox/product-details-dialog";
 
 export const Route = createFileRoute("/")({
   head: () => ({
