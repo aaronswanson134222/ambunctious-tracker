@@ -800,6 +800,7 @@ function Index() {
         )}
         <footer className="site-footer mt-10"><div className="footer-brand"><img src={AB_MARK} alt="" /><span>AMBUNCTIOUS<br /><small>TRACKER COMMAND</small></span></div><span>PRIVATE NETWORK // DISCORD UPLINK ACTIVE</span></footer>
       </main>
+      <ProductDetailsDialog open={detailsOpen} onOpenChange={setDetailsOpen} input={detailsInput} />
     </div>
   );
 }
