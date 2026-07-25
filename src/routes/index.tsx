@@ -15,6 +15,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import type { User } from "@supabase/supabase-js";
 import { AB_BANNER, AB_MARK } from "@/lib/brand-assets";
+import { ProductDetailsDialog, type ProductDetailsInput } from "@/components/roblox/product-details-dialog";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -115,6 +116,12 @@ function Index() {
   const [savingRobloxKey, setSavingRobloxKey] = useState(false);
   const [forcingRoblox, setForcingRoblox] = useState<string | null>(null);
   const [forcedRobloxItems, setForcedRobloxItems] = useState<Record<string, ForcedRobloxItem>>({});
+  const [detailsInput, setDetailsInput] = useState<ProductDetailsInput | null>(null);
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  function openProductDetails(input: ProductDetailsInput) {
+    setDetailsInput(input);
+    setDetailsOpen(true);
+  }
   const [running, setRunning] = useState(false);
   const [scanSeconds, setScanSeconds] = useState(SCAN_INTERVAL_SECONDS);
   const [loading, setLoading] = useState(true);
@@ -727,15 +734,24 @@ function Index() {
                               {forcedRobloxItems[r.id].id ? (
                                 <span className="text-xs text-muted-foreground">#{forcedRobloxItems[r.id].id}</span>
                               ) : null}
-                              <a
-                                href={forcedRobloxItems[r.id].url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="inline-flex items-center gap-1 rounded-md border border-white/10 px-2 py-1 text-xs font-medium hover:border-primary/50 hover:text-primary"
-                                title={forcedRobloxItems[r.id].kind === "game_pass" ? "Open game pass page" : "Open experience store page (Roblox has no public developer-product detail page)"}
-                              >
-                                View on Roblox <ExternalLink size={12} />
-                              </a>
+                              {forcedRobloxItems[r.id].kind === "developer_product" && forcedRobloxItems[r.id].id ? (
+                                <button
+                                  type="button"
+                                  onClick={() => openProductDetails({ productId: forcedRobloxItems[r.id].id as number, kind: "developer_product", universeId: null, placeId: null, fallbackName: forcedRobloxItems[r.id].name, experienceLabel: r.label })}
+                                  className="inline-flex items-center gap-1 rounded-md border border-primary/40 bg-primary/10 px-2 py-1 text-xs font-medium hover:border-primary hover:bg-primary/20"
+                                >
+                                  View details
+                                </button>
+                              ) : (
+                                <a
+                                  href={forcedRobloxItems[r.id].url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center gap-1 rounded-md border border-white/10 px-2 py-1 text-xs font-medium hover:border-primary/50 hover:text-primary"
+                                >
+                                  View on Roblox <ExternalLink size={12} />
+                                </a>
+                              )}
                             </div>
                           )}
 
@@ -768,7 +784,7 @@ function Index() {
                       <div className="flex min-w-0 items-center gap-3"><div className="tracker-avatar"><Gamepad2 /></div><div className="min-w-0"><a className="tracker-title" href={`https://www.roblox.com/games/${experience.place_id}`} target="_blank" rel="noreferrer">{experience.label} <ExternalLink /></a><p className="tracker-meta">PLACE #{experience.place_id} · UNIVERSE #{experience.universe_id} · Checked {relativeTime(experience.last_checked_at)}</p></div></div>
                       <StatusPill error={experience.last_error} checked={experience.last_checked_at} />
                     </div>
-                    <ExperienceItemsPanel items={items} lookbackDays={experience.lookback_days} />
+                    <ExperienceItemsPanel items={items} lookbackDays={experience.lookback_days} placeId={Number(experience.place_id)} universeId={Number(experience.universe_id)} experienceLabel={experience.label} onOpenDetails={openProductDetails} />
                     {experience.last_error && <p className="error-copy"><AlertTriangle /> {experience.last_error}</p>}
                     <div className="card-footer">
                       <span>Every 60 seconds · Complete pass inventory · Discord alerts for new uploads</span>
@@ -784,6 +800,7 @@ function Index() {
         )}
         <footer className="site-footer mt-10"><div className="footer-brand"><img src={AB_MARK} alt="" /><span>AMBUNCTIOUS<br /><small>TRACKER COMMAND</small></span></div><span>PRIVATE NETWORK // DISCORD UPLINK ACTIVE</span></footer>
       </main>
+      <ProductDetailsDialog open={detailsOpen} onOpenChange={setDetailsOpen} input={detailsInput} />
     </div>
   );
 }
@@ -826,7 +843,7 @@ async function fetchRobloxThumbs(
   return out;
 }
 
-function ExperienceItemsPanel({ items, lookbackDays }: { items: ExperienceProductItem[]; lookbackDays: number }) {
+function ExperienceItemsPanel({ items, lookbackDays, placeId, universeId, experienceLabel, onOpenDetails }: { items: ExperienceProductItem[]; lookbackDays: number; placeId: number; universeId: number; experienceLabel: string; onOpenDetails: (input: ProductDetailsInput) => void }) {
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState<"all" | "game_pass" | "developer_product">("all");
   const [sortBy, setSortBy] = useState<"newest" | "oldest" | "name">("newest");
@@ -938,45 +955,58 @@ function ExperienceItemsPanel({ items, lookbackDays }: { items: ExperienceProduc
                 key={item.key}
                 className="group flex items-center gap-3 rounded-lg border border-white/8 bg-card/40 p-2 hover:border-primary/40 hover:bg-card/70"
               >
-                <a
-                  href={item.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-md border border-white/8 bg-background"
-                  aria-label={`Open ${item.name} on Roblox`}
-                >
-                  {thumb ? (
-                    <img src={thumb} alt="" loading="lazy" className="h-full w-full object-cover" />
-                  ) : thumb === null ? (
-                    <ImageOff className="h-5 w-5 text-muted-foreground" />
-                  ) : (
-                    <LoaderCircle className="h-4 w-4 animate-spin text-muted-foreground" />
-                  )}
-                </a>
-                <div className="min-w-0 flex-1">
+                {isPass ? (
                   <a
                     href={item.url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="block truncate text-sm font-medium hover:text-primary group-hover:text-primary"
+                    className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-md border border-white/8 bg-background"
+                    aria-label={`Open ${item.name} on Roblox`}
                   >
-                    {item.name}
+                    {thumb ? (<img src={thumb} alt="" loading="lazy" className="h-full w-full object-cover" />) : thumb === null ? (<ImageOff className="h-5 w-5 text-muted-foreground" />) : (<LoaderCircle className="h-4 w-4 animate-spin text-muted-foreground" />)}
                   </a>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => onOpenDetails({ productId: item.id, kind: "developer_product", universeId, placeId, fallbackName: item.name, fallbackCreatedAt: item.createdAt ?? null, experienceLabel })}
+                    className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-md border border-white/8 bg-background"
+                    aria-label={`View details for ${item.name}`}
+                  >
+                    {thumb ? (<img src={thumb} alt="" loading="lazy" className="h-full w-full object-cover" />) : thumb === null ? (<ImageOff className="h-5 w-5 text-muted-foreground" />) : (<LoaderCircle className="h-4 w-4 animate-spin text-muted-foreground" />)}
+                  </button>
+                )}
+                <div className="min-w-0 flex-1">
+                  {isPass ? (
+                    <a href={item.url} target="_blank" rel="noopener noreferrer" className="block truncate text-sm font-medium hover:text-primary group-hover:text-primary">{item.name}</a>
+                  ) : (
+                    <button type="button" onClick={() => onOpenDetails({ productId: item.id, kind: "developer_product", universeId, placeId, fallbackName: item.name, fallbackCreatedAt: item.createdAt ?? null, experienceLabel })} className="block w-full truncate text-left text-sm font-medium hover:text-primary group-hover:text-primary">{item.name}</button>
+                  )}
                   <p className="truncate text-[11px] uppercase tracking-wide text-muted-foreground">
                     {isPass ? <><Package className="mr-1 inline h-3 w-3" />Game pass</> : <><ShoppingBag className="mr-1 inline h-3 w-3" />Dev product</>}
                     {" · #"}{item.id}
                     {item.createdAt ? ` · ${new Date(item.createdAt).toLocaleDateString()}` : ""}
                   </p>
                 </div>
-                <a
-                  href={item.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex shrink-0 items-center gap-1 rounded-md border border-white/10 px-2 py-1 text-xs font-medium hover:border-primary/50 hover:text-primary"
-                  title={isPass ? "Open game pass page" : "Open experience store page (Roblox has no public developer-product detail page)"}
-                >
-                  View on Roblox <ExternalLink size={12} />
-                </a>
+                {isPass ? (
+                  <a
+                    href={item.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex shrink-0 items-center gap-1 rounded-md border border-white/10 px-2 py-1 text-xs font-medium hover:border-primary/50 hover:text-primary"
+                    title="Open game pass page"
+                  >
+                    View on Roblox <ExternalLink size={12} />
+                  </a>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => onOpenDetails({ productId: item.id, kind: "developer_product", universeId, placeId, fallbackName: item.name, fallbackCreatedAt: item.createdAt ?? null, experienceLabel })}
+                    className="inline-flex shrink-0 items-center gap-1 rounded-md border border-primary/40 bg-primary/10 px-2 py-1 text-xs font-medium hover:border-primary hover:bg-primary/20"
+                    title="Open developer product details"
+                  >
+                    View details
+                  </button>
+                )}
               </div>
             );
           })}
