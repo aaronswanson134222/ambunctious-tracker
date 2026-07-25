@@ -945,30 +945,32 @@ function ExperienceItemsPanel({ items, lookbackDays, placeId, universeId, experi
                 key={item.key}
                 className="group flex items-center gap-3 rounded-lg border border-white/8 bg-card/40 p-2 hover:border-primary/40 hover:bg-card/70"
               >
-                <a
-                  href={item.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-md border border-white/8 bg-background"
-                  aria-label={`Open ${item.name} on Roblox`}
-                >
-                  {thumb ? (
-                    <img src={thumb} alt="" loading="lazy" className="h-full w-full object-cover" />
-                  ) : thumb === null ? (
-                    <ImageOff className="h-5 w-5 text-muted-foreground" />
-                  ) : (
-                    <LoaderCircle className="h-4 w-4 animate-spin text-muted-foreground" />
-                  )}
-                </a>
-                <div className="min-w-0 flex-1">
+                {isPass ? (
                   <a
                     href={item.url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="block truncate text-sm font-medium hover:text-primary group-hover:text-primary"
+                    className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-md border border-white/8 bg-background"
+                    aria-label={`Open ${item.name} on Roblox`}
                   >
-                    {item.name}
+                    {thumb ? (<img src={thumb} alt="" loading="lazy" className="h-full w-full object-cover" />) : thumb === null ? (<ImageOff className="h-5 w-5 text-muted-foreground" />) : (<LoaderCircle className="h-4 w-4 animate-spin text-muted-foreground" />)}
                   </a>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => onOpenDetails({ productId: item.id, kind: "developer_product", universeId, placeId, fallbackName: item.name, fallbackCreatedAt: item.createdAt ?? null, experienceLabel })}
+                    className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-md border border-white/8 bg-background"
+                    aria-label={`View details for ${item.name}`}
+                  >
+                    {thumb ? (<img src={thumb} alt="" loading="lazy" className="h-full w-full object-cover" />) : thumb === null ? (<ImageOff className="h-5 w-5 text-muted-foreground" />) : (<LoaderCircle className="h-4 w-4 animate-spin text-muted-foreground" />)}
+                  </button>
+                )}
+                <div className="min-w-0 flex-1">
+                  {isPass ? (
+                    <a href={item.url} target="_blank" rel="noopener noreferrer" className="block truncate text-sm font-medium hover:text-primary group-hover:text-primary">{item.name}</a>
+                  ) : (
+                    <button type="button" onClick={() => onOpenDetails({ productId: item.id, kind: "developer_product", universeId, placeId, fallbackName: item.name, fallbackCreatedAt: item.createdAt ?? null, experienceLabel })} className="block w-full truncate text-left text-sm font-medium hover:text-primary group-hover:text-primary">{item.name}</button>
+                  )}
                   <p className="truncate text-[11px] uppercase tracking-wide text-muted-foreground">
                     {isPass ? <><Package className="mr-1 inline h-3 w-3" />Game pass</> : <><ShoppingBag className="mr-1 inline h-3 w-3" />Dev product</>}
                     {" · #"}{item.id}
