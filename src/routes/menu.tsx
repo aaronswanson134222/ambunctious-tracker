@@ -1,11 +1,12 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { BellRing, Bot, Brain, Gamepad2, Home, Settings, ShieldCheck } from "lucide-react";
+import { BellRing, Bot, Brain, Gamepad2, Home, Send, ShieldCheck } from "lucide-react";
 import { Card } from "@/components/ui/card";
 
 export const Route = createFileRoute("/menu")({ component: MainMenu });
 
 const items = [
   { to: "/", title: "Tracker dashboard", copy: "Manage X, Roblox, price and website monitoring.", icon: Home },
+  { to: "/embed-test", title: "Discord embed test", copy: "Preview and send labelled Roblox product test embeds without changing tracker data.", icon: Send },
   { to: "/bot-connections", title: "Bot connections", copy: "View Discord, Roblox, X and database health.", icon: Bot },
   { to: "/private-alerts", title: "Discord DM setup", copy: "Configure your bot token, user ID and test private DMs.", icon: BellRing },
   { to: "/puzzle-solver", title: "Puzzle lab", copy: "Solve image grids, compare candidates, correct tiles and train the matcher.", icon: Brain },
