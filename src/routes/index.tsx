@@ -714,15 +714,31 @@ function Index() {
                           </div>
                           {!robloxKeyConfigured && <p className="text-xs text-amber-400">Connect the Roblox Open Cloud key to enable manual checks.</p>}
                           {forcedRobloxItems[r.id] && (
-                            <a
-                              className="flex items-center gap-1 text-sm text-primary hover:underline"
-                              href={forcedRobloxItems[r.id].url}
-                              target="_blank"
-                              rel="noreferrer"
-                            >
-                              Latest result: {forcedRobloxItems[r.id].name} <ExternalLink size={14} />
-                            </a>
+                            <div className="flex flex-wrap items-center gap-2 text-sm">
+                              <span className="text-muted-foreground">Latest result:</span>
+                              <a
+                                className="font-medium text-primary hover:underline"
+                                href={forcedRobloxItems[r.id].url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                              >
+                                {forcedRobloxItems[r.id].name}
+                              </a>
+                              {forcedRobloxItems[r.id].id ? (
+                                <span className="text-xs text-muted-foreground">#{forcedRobloxItems[r.id].id}</span>
+                              ) : null}
+                              <a
+                                href={forcedRobloxItems[r.id].url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1 rounded-md border border-white/10 px-2 py-1 text-xs font-medium hover:border-primary/50 hover:text-primary"
+                                title={forcedRobloxItems[r.id].kind === "game_pass" ? "Open game pass page" : "Open experience store page (Roblox has no public developer-product detail page)"}
+                              >
+                                View on Roblox <ExternalLink size={12} />
+                              </a>
+                            </div>
                           )}
+
                         </div>
                       )}
                     </div>
