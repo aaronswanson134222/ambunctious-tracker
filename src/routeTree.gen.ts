@@ -16,6 +16,7 @@ import { Route as MenuRouteImport } from './routes/menu'
 import { Route as BotConnectionsRouteImport } from './routes/bot-connections'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ApiRobloxThumbnailsRouteImport } from './routes/api/roblox/thumbnails'
+import { Route as ApiRobloxProductDetailsRouteImport } from './routes/api/roblox/product-details'
 import { Route as ApiRobloxKeyRouteImport } from './routes/api/roblox/key'
 import { Route as ApiRobloxForceCheckRouteImport } from './routes/api/roblox/force-check'
 import { Route as ApiRobloxExperiencesRouteImport } from './routes/api/roblox/experiences'
@@ -63,6 +64,11 @@ const IndexRoute = IndexRouteImport.update({
 const ApiRobloxThumbnailsRoute = ApiRobloxThumbnailsRouteImport.update({
   id: '/api/roblox/thumbnails',
   path: '/api/roblox/thumbnails',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiRobloxProductDetailsRoute = ApiRobloxProductDetailsRouteImport.update({
+  id: '/api/roblox/product-details',
+  path: '/api/roblox/product-details',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiRobloxKeyRoute = ApiRobloxKeyRouteImport.update({
@@ -152,6 +158,7 @@ export interface FileRoutesByFullPath {
   '/api/roblox/experiences': typeof ApiRobloxExperiencesRoute
   '/api/roblox/force-check': typeof ApiRobloxForceCheckRoute
   '/api/roblox/key': typeof ApiRobloxKeyRoute
+  '/api/roblox/product-details': typeof ApiRobloxProductDetailsRoute
   '/api/roblox/thumbnails': typeof ApiRobloxThumbnailsRoute
 }
 export interface FileRoutesByTo {
@@ -174,6 +181,7 @@ export interface FileRoutesByTo {
   '/api/roblox/experiences': typeof ApiRobloxExperiencesRoute
   '/api/roblox/force-check': typeof ApiRobloxForceCheckRoute
   '/api/roblox/key': typeof ApiRobloxKeyRoute
+  '/api/roblox/product-details': typeof ApiRobloxProductDetailsRoute
   '/api/roblox/thumbnails': typeof ApiRobloxThumbnailsRoute
 }
 export interface FileRoutesById {
@@ -197,6 +205,7 @@ export interface FileRoutesById {
   '/api/roblox/experiences': typeof ApiRobloxExperiencesRoute
   '/api/roblox/force-check': typeof ApiRobloxForceCheckRoute
   '/api/roblox/key': typeof ApiRobloxKeyRoute
+  '/api/roblox/product-details': typeof ApiRobloxProductDetailsRoute
   '/api/roblox/thumbnails': typeof ApiRobloxThumbnailsRoute
 }
 export interface FileRouteTypes {
@@ -221,6 +230,7 @@ export interface FileRouteTypes {
     | '/api/roblox/experiences'
     | '/api/roblox/force-check'
     | '/api/roblox/key'
+    | '/api/roblox/product-details'
     | '/api/roblox/thumbnails'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -243,6 +253,7 @@ export interface FileRouteTypes {
     | '/api/roblox/experiences'
     | '/api/roblox/force-check'
     | '/api/roblox/key'
+    | '/api/roblox/product-details'
     | '/api/roblox/thumbnails'
   id:
     | '__root__'
@@ -265,6 +276,7 @@ export interface FileRouteTypes {
     | '/api/roblox/experiences'
     | '/api/roblox/force-check'
     | '/api/roblox/key'
+    | '/api/roblox/product-details'
     | '/api/roblox/thumbnails'
   fileRoutesById: FileRoutesById
 }
@@ -288,6 +300,7 @@ export interface RootRouteChildren {
   ApiRobloxExperiencesRoute: typeof ApiRobloxExperiencesRoute
   ApiRobloxForceCheckRoute: typeof ApiRobloxForceCheckRoute
   ApiRobloxKeyRoute: typeof ApiRobloxKeyRoute
+  ApiRobloxProductDetailsRoute: typeof ApiRobloxProductDetailsRoute
   ApiRobloxThumbnailsRoute: typeof ApiRobloxThumbnailsRoute
 }
 
@@ -340,6 +353,13 @@ declare module '@tanstack/react-router' {
       path: '/api/roblox/thumbnails'
       fullPath: '/api/roblox/thumbnails'
       preLoaderRoute: typeof ApiRobloxThumbnailsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/roblox/product-details': {
+      id: '/api/roblox/product-details'
+      path: '/api/roblox/product-details'
+      fullPath: '/api/roblox/product-details'
+      preLoaderRoute: typeof ApiRobloxProductDetailsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/roblox/key': {
@@ -456,18 +476,9 @@ const rootRouteChildren: RootRouteChildren = {
   ApiRobloxExperiencesRoute: ApiRobloxExperiencesRoute,
   ApiRobloxForceCheckRoute: ApiRobloxForceCheckRoute,
   ApiRobloxKeyRoute: ApiRobloxKeyRoute,
+  ApiRobloxProductDetailsRoute: ApiRobloxProductDetailsRoute,
   ApiRobloxThumbnailsRoute: ApiRobloxThumbnailsRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}
