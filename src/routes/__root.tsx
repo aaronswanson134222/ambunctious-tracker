@@ -113,6 +113,7 @@ function RootComponent() {
   return (
     <QueryClientProvider client={queryClient}>
       <OneMinuteScanUiSync />
+      <Link to="/embed-test" aria-label="Test Discord embed" className="fixed bottom-20 right-4 z-50 inline-flex h-12 items-center gap-2 rounded-full border border-primary/40 bg-primary px-4 text-sm font-semibold text-primary-foreground shadow-2xl backdrop-blur transition hover:brightness-110">🧪 Test Discord Embed</Link>
       <Link to="/menu" aria-label="Open main menu" className="fixed bottom-4 right-4 z-50 inline-flex h-12 items-center gap-2 rounded-full border border-white/15 bg-card/95 px-4 text-sm font-semibold shadow-2xl backdrop-blur transition hover:border-primary/60 hover:text-primary">☰ Menu</Link>
       <Outlet />
       <Toaster />
