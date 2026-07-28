@@ -8,7 +8,7 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
 
-export const Route = createFileRoute("/embed-test")({ component: EmbedTestPage });
+export const Route = createFileRoute("/embed-test" as any)({ component: EmbedTestPage });
 
 type ProductItem = {
   id: number;
