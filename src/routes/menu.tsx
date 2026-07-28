@@ -29,6 +29,7 @@ type EmbedResult = {
   sent?: boolean;
   messageId?: string | null;
   error?: string;
+  embed?: Record<string, unknown>;
   details?: {
     name: string;
     description: string | null;
@@ -78,7 +79,7 @@ function EmbedTester() {
           const body = await response.json() as { webhookConfigured?: boolean };
           if (response.ok) setWebhookConfigured(body.webhookConfigured === true);
         } catch {
-          // The tester still loads even if status lookup temporarily fails.
+          // The tester still loads if the status lookup temporarily fails.
         }
       }
       setLoading(false);
@@ -149,7 +150,7 @@ function EmbedTester() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          action: action === "send" ? "send_test_embed" : "preview",
+          action: "preview",
           kind,
           productId: id,
           universeId: selected.universe_id,
@@ -159,10 +160,24 @@ function EmbedTester() {
           customMessage: customMessage.trim() || undefined,
         }),
       });
-      const body = await response.json() as EmbedResult;
-      setResult(body);
-      if (!response.ok) throw new Error(body.error || "The embed request failed.");
-      toast.success(action === "send" ? "Test embed sent through the dedicated webhook." : "Embed preview loaded.");
+      const preview = await response.json() as EmbedResult;
+      if (!response.ok || !preview.embed) throw new Error(preview.error || "The embed preview failed.");
+
+      if (action === "preview") {
+        setResult(preview);
+        toast.success("Embed preview loaded.");
+        return;
+      }
+
+      const { data: edgeData, error: edgeError } = await supabase.functions.invoke("send-embed-test", {
+        body: { embed: preview.embed },
+      });
+      const edgeBody = (edgeData ?? {}) as { sent?: boolean; messageId?: string | null; error?: string };
+      if (edgeError || !edgeBody.sent) {
+        throw new Error(edgeBody.error || edgeError?.message || "The Edge Function could not send the embed.");
+      }
+      setResult({ ...preview, sent: true, messageId: edgeBody.messageId ?? null });
+      toast.success("Test embed sent through Supabase.");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "The embed request failed.");
     } finally {
@@ -177,7 +192,7 @@ function EmbedTester() {
         <div>
           <p className="eyebrow"><span /> DISCORD EMBED LAB</p>
           <h2 className="mt-2 text-2xl font-semibold">Roblox product embed tester</h2>
-          <p className="mt-2 text-sm text-muted-foreground">Preview the exact data first, then send a clearly labelled test message without changing scan history or product baselines.</p>
+          <p className="mt-2 text-sm text-muted-foreground">Preview the exact data first, then send a clearly labelled test message through Supabase without changing scan history or product baselines.</p>
         </div>
       </div>
 
