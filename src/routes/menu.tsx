@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
-import { BellRing, Bot, Brain, CheckCircle2, Eye, Gamepad2, Home, LoaderCircle, Send, ShieldCheck, TestTube2 } from "lucide-react";
+import { BellRing, Bot, Brain, CheckCircle2, Eye, Gamepad2, Home, Link2, LoaderCircle, Save, Send, ShieldCheck, TestTube2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -48,20 +48,39 @@ function EmbedTester() {
   const [fallbackName, setFallbackName] = useState("");
   const [customTitle, setCustomTitle] = useState("");
   const [customMessage, setCustomMessage] = useState("");
+  const [webhook, setWebhook] = useState("");
+  const [webhookConfigured, setWebhookConfigured] = useState(false);
+  const [webhookSaving, setWebhookSaving] = useState(false);
   const [loading, setLoading] = useState(true);
   const [working, setWorking] = useState<"preview" | "send" | null>(null);
   const [result, setResult] = useState<EmbedResult | null>(null);
 
   useEffect(() => {
     void (async () => {
-      const { data, error } = await supabase
-        .from("tracked_roblox_experiences")
-        .select("id,label,place_id,universe_id,items")
-        .order("created_at", { ascending: true });
+      const [{ data: rowsData, error }, sessionResult] = await Promise.all([
+        supabase
+          .from("tracked_roblox_experiences")
+          .select("id,label,place_id,universe_id,items")
+          .order("created_at", { ascending: true }),
+        supabase.auth.getSession(),
+      ]);
       if (error) toast.error(error.message);
-      const rows = (data ?? []) as unknown as Experience[];
+      const rows = (rowsData ?? []) as unknown as Experience[];
       setExperiences(rows);
       if (rows[0]) setExperienceId(rows[0].id);
+
+      const token = sessionResult.data.session?.access_token;
+      if (token) {
+        try {
+          const response = await fetch("/api/roblox/product-details", {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          const body = await response.json() as { webhookConfigured?: boolean };
+          if (response.ok) setWebhookConfigured(body.webhookConfigured === true);
+        } catch {
+          // The tester still loads even if status lookup temporarily fails.
+        }
+      }
       setLoading(false);
     })();
   }, []);
@@ -82,8 +101,38 @@ function EmbedTester() {
     setFallbackName(latest.name);
   }
 
+  async function saveWebhook() {
+    const value = webhook.trim();
+    if (!value) return toast.error("Paste the new Discord webhook URL first.");
+    const { data } = await supabase.auth.getSession();
+    const token = data.session?.access_token;
+    if (!token) return toast.error("Your secure session expired. Sign in again.");
+
+    setWebhookSaving(true);
+    try {
+      const response = await fetch("/api/roblox/product-details", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ action: "save_embed_webhook", webhook: value }),
+      });
+      const body = await response.json() as { webhookConfigured?: boolean; error?: string };
+      if (!response.ok || !body.webhookConfigured) throw new Error(body.error || "Could not save the webhook.");
+      setWebhookConfigured(true);
+      setWebhook("");
+      toast.success("Dedicated embed webhook saved securely.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not save the webhook.");
+    } finally {
+      setWebhookSaving(false);
+    }
+  }
+
   async function run(action: "preview" | "send") {
     if (!selected) return toast.error("Add or choose a tracked Roblox experience first.");
+    if (action === "send" && !webhookConfigured) return toast.error("Add the dedicated embed webhook first.");
     const id = Number(productId);
     if (!Number.isSafeInteger(id) || id <= 0) return toast.error("Enter a valid Roblox product ID.");
 
@@ -113,7 +162,7 @@ function EmbedTester() {
       const body = await response.json() as EmbedResult;
       setResult(body);
       if (!response.ok) throw new Error(body.error || "The embed request failed.");
-      toast.success(action === "send" ? "Test embed sent to Discord." : "Embed preview loaded.");
+      toast.success(action === "send" ? "Test embed sent through the dedicated webhook." : "Embed preview loaded.");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "The embed request failed.");
     } finally {
@@ -130,6 +179,33 @@ function EmbedTester() {
           <h2 className="mt-2 text-2xl font-semibold">Roblox product embed tester</h2>
           <p className="mt-2 text-sm text-muted-foreground">Preview the exact data first, then send a clearly labelled test message without changing scan history or product baselines.</p>
         </div>
+      </div>
+
+      <div className="content-panel space-y-3 p-4">
+        <div className="flex items-center gap-2">
+          <Link2 size={18} />
+          <div>
+            <p className="font-medium">Dedicated embed webhook</p>
+            <p className="text-xs text-muted-foreground">This is separate from the tracker alert webhook and is stored securely in Supabase Vault.</p>
+          </div>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-[1fr_auto]">
+          <Input
+            type="password"
+            value={webhook}
+            onChange={(event) => setWebhook(event.target.value)}
+            placeholder={webhookConfigured ? "Webhook configured — paste a new one to replace it" : "Paste the Discord webhook URL"}
+            autoComplete="off"
+            className="h-11 rounded-xl"
+          />
+          <Button onClick={() => void saveWebhook()} disabled={webhookSaving || !webhook.trim()} className="h-11 rounded-xl">
+            {webhookSaving ? <LoaderCircle className="animate-spin" /> : <Save />}
+            {webhookConfigured ? "Replace webhook" : "Save webhook"}
+          </Button>
+        </div>
+        <p className={webhookConfigured ? "text-xs text-emerald-400" : "text-xs text-amber-300"}>
+          {webhookConfigured ? "Dedicated embed webhook is configured." : "A dedicated webhook is required before test embeds can be sent."}
+        </p>
       </div>
 
       {loading ? (
@@ -169,7 +245,7 @@ function EmbedTester() {
             <Button variant="outline" onClick={() => void run("preview")} disabled={working !== null || !productId} className="h-11 rounded-xl">
               {working === "preview" ? <LoaderCircle className="animate-spin" /> : <Eye />} Preview embed
             </Button>
-            <Button onClick={() => void run("send")} disabled={working !== null || !productId} className="metal-button h-11 rounded-none">
+            <Button onClick={() => void run("send")} disabled={working !== null || !productId || !webhookConfigured} className="metal-button h-11 rounded-none">
               {working === "send" ? <LoaderCircle className="animate-spin" /> : <Send />} Send labelled test
             </Button>
           </div>
