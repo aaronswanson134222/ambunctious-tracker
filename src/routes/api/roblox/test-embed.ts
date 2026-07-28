@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { createRobloxProductEmbed, enrichRobloxProduct } from "@/lib/roblox-product-preview.server";
+import { buildRobloxPreviewEmbed, enrichRobloxPreview } from "@/lib/roblox-product-preview.server";
 import { sendDiscord } from "@/lib/tracker.server";
 
 function json(body: unknown, status = 200) {
@@ -25,7 +25,7 @@ async function ownerClient(request: Request) {
   return !ownerError && isOwner === true ? supabaseAdmin : null;
 }
 
-export const Route = createFileRoute("/api/roblox/test-embed")({
+export const Route = createFileRoute("/api/roblox/test-embed" as any)({
   server: {
     handlers: {
       POST: async ({ request }) => {
@@ -57,34 +57,34 @@ export const Route = createFileRoute("/api/roblox/test-embed")({
           : "Roblox experience";
         const fallbackName = typeof body.fallbackName === "string"
           ? body.fallbackName.trim().slice(0, 120)
-          : undefined;
+          : "Roblox product";
 
         if (!kind || !Number.isSafeInteger(productId) || productId <= 0) {
           return json({ error: "Choose a valid product type and product ID" }, 400);
         }
 
         try {
-          const preview = await enrichRobloxProduct({
+          const preview = await enrichRobloxPreview({
+            id: productId,
             kind,
-            productId,
+            name: fallbackName || "Roblox product",
+            url: kind === "game_pass"
+              ? `https://www.roblox.com/game-pass/${productId}`
+              : `https://www.roblox.com/developer-products/${productId}`,
             universeId: Number.isSafeInteger(universeId) && universeId > 0 ? universeId : null,
             placeId: Number.isSafeInteger(placeId) && placeId > 0 ? placeId : null,
-            experienceLabel,
-            fallbackName,
+            experienceName: experienceLabel,
           });
 
-          const embed = createRobloxProductEmbed(preview, {
-            authorName: `TEST EMBED // ${experienceLabel}`,
-            descriptionPrefix: "⚠️ **TEST MESSAGE — this is not a real tracker detection.**\n\n",
-          });
+          const embed = buildRobloxPreviewEmbed(
+            preview,
+            `TEST EMBED // ${experienceLabel}`,
+          ) as Record<string, any>;
+          embed.description = `⚠️ **TEST MESSAGE — this is not a real tracker detection.**\n\n${String(embed.description ?? "")}`.slice(0, 4096);
           embed.footer = { text: "Ambunctious Tracker • Discord embed test" };
 
           const messageId = await sendDiscord({ embeds: [embed] });
-          return json({
-            sent: true,
-            message_id: messageId,
-            preview,
-          });
+          return json({ sent: true, message_id: messageId, preview });
         } catch (error) {
           return json({
             error: error instanceof Error ? error.message : String(error),
