@@ -1,11 +1,12 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-function json(body: unknown, status = 200) {
+function json(body: unknown, status = 200, extraHeaders: Record<string, string> = {}) {
   return Response.json(body, {
     status,
     headers: {
       "Cache-Control": "no-store, max-age=0",
       "X-Content-Type-Options": "nosniff",
+      ...extraHeaders,
     },
   });
 }
@@ -148,9 +149,56 @@ function buildTestEmbed(details: any, customTitle: string | null, customMessage:
   };
 }
 
+function validateWebhook(value: string) {
+  try {
+    const url = new URL(value);
+    return url.protocol === "https:"
+      && ["discord.com", "discordapp.com"].some((host) => url.hostname === host || url.hostname.endsWith(`.${host}`))
+      && /^\/api\/webhooks\/\d+\/[A-Za-z0-9._-]+\/?$/.test(url.pathname);
+  } catch {
+    return false;
+  }
+}
+
+async function sendEmbedWebhook(webhook: string, embed: Record<string, unknown>) {
+  const url = new URL(webhook);
+  url.searchParams.set("wait", "true");
+  const response = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "User-Agent": "Ambunctious-Tracker/1.0" },
+    body: JSON.stringify({ embeds: [embed], allowed_mentions: { parse: [] } }),
+  });
+  const text = await response.text();
+  if (response.status === 429) {
+    let retryAfter = Number(response.headers.get("retry-after")) || 0;
+    try {
+      const parsed = JSON.parse(text) as { retry_after?: number };
+      if (typeof parsed.retry_after === "number") retryAfter = parsed.retry_after;
+    } catch {
+      // Cloudflare may return HTML instead of JSON.
+    }
+    const seconds = Math.max(5, Math.ceil(retryAfter || 60));
+    throw Object.assign(new Error(`Discord is rate limiting the dedicated embed webhook. Try again in ${seconds} seconds.`), { status: 429, retryAfter: seconds });
+  }
+  if (!response.ok) throw new Error(`Discord webhook ${response.status}: ${text.slice(0, 200)}`);
+  try {
+    const parsed = JSON.parse(text) as { id?: unknown };
+    return typeof parsed.id === "string" ? parsed.id : null;
+  } catch {
+    return null;
+  }
+}
+
 export const Route = createFileRoute("/api/roblox/product-details")({
   server: {
     handlers: {
+      GET: async ({ request }) => {
+        const client = await ownerClient(request);
+        if (!client) return json({ error: "Unauthorized" }, 401);
+        const { data, error } = await (client as any).rpc("has_embed_test_webhook");
+        if (error) return json({ error: "Could not read embed webhook settings" }, 503);
+        return json({ webhookConfigured: data === true });
+      },
       POST: async ({ request }) => {
         const client = await ownerClient(request);
         if (!client) return json({ error: "Unauthorized" }, 401);
@@ -160,6 +208,14 @@ export const Route = createFileRoute("/api/roblox/product-details")({
           body = await request.json() as Record<string, unknown>;
         } catch {
           return json({ error: "Invalid request" }, 400);
+        }
+
+        if (body.action === "save_embed_webhook") {
+          const webhook = typeof body.webhook === "string" ? body.webhook.trim() : "";
+          if (!validateWebhook(webhook)) return json({ error: "Enter a valid Discord webhook URL" }, 400);
+          const { data, error } = await (client as any).rpc("set_embed_test_webhook", { candidate: webhook });
+          if (error || data !== true) return json({ error: error?.message || "Could not save the embed webhook" }, 400);
+          return json({ webhookConfigured: true });
         }
 
         const productId = Number(body.productId);
@@ -211,20 +267,21 @@ export const Route = createFileRoute("/api/roblox/product-details")({
 
         const embed = buildTestEmbed(details, customTitle, customMessage);
         if (action === "send_test_embed") {
+          const { data: webhook, error: webhookError } = await (client as any).rpc("get_embed_test_webhook");
+          if (webhookError || typeof webhook !== "string" || !validateWebhook(webhook)) {
+            return json({ error: "Add a dedicated embed webhook before sending tests.", details, embed }, 400);
+          }
           try {
-            const { sendDiscordTestEmbed } = await import("@/lib/discord-webhook-test.server");
-            const messageId = await sendDiscordTestEmbed(embed);
+            const messageId = await sendEmbedWebhook(webhook, embed);
             return json({ sent: true, messageId, details, embed });
           } catch (error) {
-            const retryAfter = typeof error === "object" && error !== null && "retryAfterSeconds" in error
-              ? Number((error as { retryAfterSeconds?: unknown }).retryAfterSeconds)
-              : null;
-            return json({
-              error: error instanceof Error ? error.message : String(error),
-              retryAfterSeconds: Number.isFinite(retryAfter) ? retryAfter : null,
-              details,
-              embed,
-            }, retryAfter ? 429 : 502);
+            const status = typeof (error as any)?.status === "number" ? (error as any).status : 502;
+            const retryAfter = typeof (error as any)?.retryAfter === "number" ? (error as any).retryAfter : undefined;
+            return json(
+              { error: error instanceof Error ? error.message : String(error), details, embed },
+              status,
+              retryAfter ? { "Retry-After": String(retryAfter) } : {},
+            );
           }
         }
 
