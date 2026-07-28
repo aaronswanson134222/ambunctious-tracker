@@ -212,11 +212,19 @@ export const Route = createFileRoute("/api/roblox/product-details")({
         const embed = buildTestEmbed(details, customTitle, customMessage);
         if (action === "send_test_embed") {
           try {
-            const { sendDiscord } = await import("@/lib/tracker.server");
-            const messageId = await sendDiscord({ embeds: [embed] });
+            const { sendDiscordTestEmbed } = await import("@/lib/discord-webhook-test.server");
+            const messageId = await sendDiscordTestEmbed(embed);
             return json({ sent: true, messageId, details, embed });
           } catch (error) {
-            return json({ error: error instanceof Error ? error.message : String(error), details, embed }, 502);
+            const retryAfter = typeof error === "object" && error !== null && "retryAfterSeconds" in error
+              ? Number((error as { retryAfterSeconds?: unknown }).retryAfterSeconds)
+              : null;
+            return json({
+              error: error instanceof Error ? error.message : String(error),
+              retryAfterSeconds: Number.isFinite(retryAfter) ? retryAfter : null,
+              details,
+              embed,
+            }, retryAfter ? 429 : 502);
           }
         }
 
