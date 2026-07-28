@@ -110,12 +110,20 @@ function RootComponent() {
   const { queryClient } = Route.useRouteContext();
   const publicSupabaseConfig = Route.useLoaderData();
   configureSupabase(publicSupabaseConfig);
+  const tabClass = "inline-flex h-11 min-w-24 items-center justify-center gap-2 rounded-xl px-4 text-sm font-semibold text-muted-foreground transition hover:bg-white/5 hover:text-foreground";
+  const activeTabClass = "bg-primary text-primary-foreground shadow-lg hover:bg-primary hover:text-primary-foreground";
+
   return (
     <QueryClientProvider client={queryClient}>
       <OneMinuteScanUiSync />
-      <Link to="/embed-test" aria-label="Test Discord embed" className="fixed bottom-20 right-4 z-50 inline-flex h-12 items-center gap-2 rounded-full border border-primary/40 bg-primary px-4 text-sm font-semibold text-primary-foreground shadow-2xl backdrop-blur transition hover:brightness-110">🧪 Test Discord Embed</Link>
-      <Link to="/menu" aria-label="Open main menu" className="fixed bottom-4 right-4 z-50 inline-flex h-12 items-center gap-2 rounded-full border border-white/15 bg-card/95 px-4 text-sm font-semibold shadow-2xl backdrop-blur transition hover:border-primary/60 hover:text-primary">☰ Menu</Link>
-      <Outlet />
+      <nav aria-label="Primary navigation" className="fixed bottom-4 left-1/2 z-50 flex -translate-x-1/2 items-center gap-1 rounded-2xl border border-white/15 bg-card/95 p-1.5 shadow-2xl backdrop-blur-xl">
+        <Link to="/" className={tabClass} activeProps={{ className: `${tabClass} ${activeTabClass}` }}>⌂ Dashboard</Link>
+        <Link to="/embed-test" className={tabClass} activeProps={{ className: `${tabClass} ${activeTabClass}` }}>🧪 Testing</Link>
+        <Link to="/menu" className={tabClass} activeProps={{ className: `${tabClass} ${activeTabClass}` }}>☰ Menu</Link>
+      </nav>
+      <div className="pb-24">
+        <Outlet />
+      </div>
       <Toaster />
     </QueryClientProvider>
   );
