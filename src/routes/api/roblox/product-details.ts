@@ -23,31 +23,32 @@ async function ownerClient(request: Request) {
   return !ownerError && isOwner === true ? supabaseAdmin : null;
 }
 
-async function robloxJson(url: URL, apiKey?: string): Promise<any> {
-  const res = await fetch(url, {
-    headers: {
-      Accept: "application/json",
-      "User-Agent": "Ambunctious-Tracker/1.0",
-      ...(apiKey ? { "x-api-key": apiKey } : {}),
-    },
-  });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  return await res.json();
+async function robloxJson(url: URL): Promise<any> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 12_000);
+  try {
+    const res = await fetch(url, {
+      signal: controller.signal,
+      headers: { Accept: "application/json", "User-Agent": "Ambunctious-Tracker/1.0" },
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return await res.json();
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
-async function fetchThumbnail(kind: "game_pass" | "developer_product", id: number): Promise<string | null> {
+async function fetchThumbnail(kind: "game_pass" | "developer_product", id: number) {
   try {
-    const endpoint = kind === "game_pass"
+    const url = new URL(kind === "game_pass"
       ? "https://thumbnails.roblox.com/v1/game-passes"
-      : "https://thumbnails.roblox.com/v1/developer-products/icons";
-    const param = kind === "game_pass" ? "gamePassIds" : "developerProductIds";
-    const url = new URL(endpoint);
-    url.searchParams.set(param, String(id));
+      : "https://thumbnails.roblox.com/v1/developer-products/icons");
+    url.searchParams.set(kind === "game_pass" ? "gamePassIds" : "developerProductIds", String(id));
     url.searchParams.set("size", "420x420");
     url.searchParams.set("format", "Png");
-    const body = await robloxJson(url);
-    const row = Array.isArray(body?.data) ? body.data[0] : null;
-    return row?.state === "Completed" && typeof row?.imageUrl === "string" ? row.imageUrl : null;
+    url.searchParams.set("isCircular", "false");
+    const row = (await robloxJson(url))?.data?.[0];
+    return row?.state === "Completed" && typeof row.imageUrl === "string" ? row.imageUrl : null;
   } catch {
     return null;
   }
@@ -57,13 +58,12 @@ async function fetchUniverseDetails(universeId: number) {
   try {
     const url = new URL("https://games.roblox.com/v1/games");
     url.searchParams.set("universeIds", String(universeId));
-    const body = await robloxJson(url);
-    const row = Array.isArray(body?.data) ? body.data[0] : null;
+    const row = (await robloxJson(url))?.data?.[0];
     if (!row) return null;
     return {
       name: typeof row.name === "string" ? row.name : null,
-      creatorName: row.creator?.name ?? null,
-      creatorType: row.creator?.type ?? null,
+      creatorName: typeof row.creator?.name === "string" ? row.creator.name : null,
+      creatorType: typeof row.creator?.type === "string" ? row.creator.type : null,
       creatorId: typeof row.creator?.id === "number" ? row.creator.id : null,
     };
   } catch {
@@ -73,9 +73,7 @@ async function fetchUniverseDetails(universeId: number) {
 
 async function fetchGamePassInfo(id: number) {
   try {
-    const body = await robloxJson(
-      new URL(`https://apis.roblox.com/game-passes/v1/game-passes/${id}`),
-    );
+    const body = await robloxJson(new URL(`https://apis.roblox.com/game-passes/v1/game-passes/${id}`));
     return {
       name: typeof body?.name === "string" ? body.name : null,
       description: typeof body?.description === "string" ? body.description : null,
@@ -89,63 +87,65 @@ async function fetchGamePassInfo(id: number) {
   }
 }
 
-async function fetchDeveloperProductFromList(universeId: number, productId: number) {
+async function fetchDeveloperProductInfo(universeId: number, productId: number) {
   let cursor = "";
   for (let page = 0; page < 8; page++) {
-    const url = new URL(
-      `https://apis.roblox.com/developer-products/v2/universes/${universeId}/developerproducts`,
-    );
-    url.searchParams.set("limit", "100");
-    if (cursor) url.searchParams.set("cursor", cursor);
-    let body: any;
     try {
-      body = await robloxJson(url);
-    } catch {
-      return null;
-    }
-    const rows: any[] = Array.isArray(body?.developerProducts)
-      ? body.developerProducts
-      : Array.isArray(body?.data)
-        ? body.data
-        : [];
-    for (const row of rows) {
-      const id = Number(
-        row?.DeveloperProductId ?? row?.TargetId ?? row?.id ?? row?.productId,
-      );
-      if (id === productId) {
+      const url = new URL(`https://apis.roblox.com/developer-products/v2/universes/${universeId}/developerproducts`);
+      url.searchParams.set("limit", "100");
+      if (cursor) url.searchParams.set("cursor", cursor);
+      const body = await robloxJson(url);
+      const rows = Array.isArray(body?.developerProducts) ? body.developerProducts : Array.isArray(body?.data) ? body.data : [];
+      const row = rows.find((item: any) => Number(item?.DeveloperProductId ?? item?.TargetId ?? item?.id ?? item?.productId) === productId);
+      if (row) {
+        const price = row.PriceInRobux ?? row.priceInRobux ?? row.Price ?? row.price;
+        const sale = row.ShopEnabled ?? row.shopEnabled ?? row.isForSale;
         return {
-          name: (typeof row.Name === "string" && row.Name)
-            || (typeof row.name === "string" && row.name)
-            || null,
-          description: (typeof row.Description === "string" && row.Description)
-            || (typeof row.description === "string" && row.description)
-            || null,
-          priceInRobux: typeof row.PriceInRobux === "number"
-            ? row.PriceInRobux
-            : typeof row.priceInRobux === "number"
-              ? row.priceInRobux
-              : null,
-          iconImageAssetId: typeof row.IconImageAssetId === "number"
-            ? row.IconImageAssetId
-            : typeof row.iconImageAssetId === "number"
-              ? row.iconImageAssetId
-              : null,
-          shopEnabled: typeof row.ShopEnabled === "boolean"
-            ? row.ShopEnabled
-            : typeof row.shopEnabled === "boolean"
-              ? row.shopEnabled
-              : null,
-          createdAt: (typeof row.Created === "string" && row.Created)
-            || (typeof row.createdAt === "string" && row.createdAt)
-            || null,
+          name: typeof (row.Name ?? row.name) === "string" ? (row.Name ?? row.name) : null,
+          description: typeof (row.Description ?? row.description) === "string" ? (row.Description ?? row.description) : null,
+          priceInRobux: Number.isFinite(Number(price)) ? Number(price) : null,
+          isForSale: typeof sale === "boolean" ? sale : null,
+          createdAt: typeof (row.Created ?? row.createdAt) === "string" ? (row.Created ?? row.createdAt) : null,
+          iconImageAssetId: Number.isFinite(Number(row.IconImageAssetId ?? row.iconImageAssetId)) ? Number(row.IconImageAssetId ?? row.iconImageAssetId) : null,
         };
       }
+      cursor = typeof body?.nextPageCursor === "string" ? body.nextPageCursor : "";
+      if (!cursor) break;
+    } catch {
+      break;
     }
-    const next = body?.nextPageCursor;
-    if (typeof next !== "string" || !next) break;
-    cursor = next;
   }
   return null;
+}
+
+function displayKind(kind: "game_pass" | "developer_product") {
+  return kind === "game_pass" ? "Game Pass" : "Developer Product";
+}
+
+function buildTestEmbed(details: any, customTitle: string | null, customMessage: string | null) {
+  const title = customTitle || `New ${displayKind(details.kind)}: ${details.name}`;
+  const fields: Array<Record<string, unknown>> = [
+    { name: "Type", value: displayKind(details.kind), inline: true },
+    { name: "Product ID", value: `\`${details.productId}\``, inline: true },
+  ];
+  if (details.priceInRobux != null) fields.push({ name: "Price", value: `**R$ ${Number(details.priceInRobux).toLocaleString("en-GB")}**`, inline: true });
+  if (details.experienceName) fields.push({ name: "Experience", value: String(details.experienceName).slice(0, 1024), inline: true });
+  if (details.creatorName) fields.push({ name: "Creator", value: String(details.creatorName).slice(0, 1024), inline: true });
+  if (details.universeId) fields.push({ name: "Universe ID", value: `\`${details.universeId}\``, inline: true });
+  if (details.placeId) fields.push({ name: "Place ID", value: `\`${details.placeId}\``, inline: true });
+  if (details.isForSale != null) fields.push({ name: "On sale", value: details.isForSale ? "Yes" : "No", inline: true });
+
+  return {
+    author: { name: "AMBUNCTIOUS TRACKER • TEST EMBED", icon_url: "https://www.roblox.com/favicon.ico" },
+    title: title.slice(0, 256),
+    url: details.url,
+    description: (`⚠️ **TEST MESSAGE — not a real tracker detection.**\n\n${customMessage || details.description || "A Roblox product was loaded for embed testing."}`).slice(0, 4096),
+    color: details.kind === "developer_product" ? 0x22c55e : 0x00a2ff,
+    fields,
+    ...(details.thumbnailUrl ? { thumbnail: { url: details.thumbnailUrl }, image: { url: details.thumbnailUrl } } : {}),
+    footer: { text: "Ambunctious Tracker • Discord embed test" },
+    timestamp: new Date().toISOString(),
+  };
 }
 
 export const Route = createFileRoute("/api/roblox/product-details")({
@@ -155,70 +155,72 @@ export const Route = createFileRoute("/api/roblox/product-details")({
         const client = await ownerClient(request);
         if (!client) return json({ error: "Unauthorized" }, 401);
 
-        let productId = 0;
-        let universeId = 0;
-        let placeId = 0;
-        let kind: "game_pass" | "developer_product" = "developer_product";
+        let body: Record<string, unknown>;
         try {
-          const body = await request.json() as {
-            productId?: unknown; universeId?: unknown; placeId?: unknown; kind?: unknown;
-          };
-          productId = Number(body.productId);
-          universeId = Number(body.universeId) || 0;
-          placeId = Number(body.placeId) || 0;
-          if (body.kind === "game_pass" || body.kind === "developer_product") kind = body.kind;
+          body = await request.json() as Record<string, unknown>;
         } catch {
           return json({ error: "Invalid request" }, 400);
         }
-        if (!Number.isSafeInteger(productId) || productId <= 0) {
-          return json({ error: "Invalid product ID" }, 400);
-        }
 
-        const warnings: string[] = [];
+        const productId = Number(body.productId);
+        const universeId = Number(body.universeId) || 0;
+        const placeId = Number(body.placeId) || 0;
+        const kind = body.kind === "game_pass" ? "game_pass" : body.kind === "developer_product" ? "developer_product" : null;
+        const action = body.action === "send_test_embed" ? "send_test_embed" : "preview";
+        const fallbackName = typeof body.fallbackName === "string" ? body.fallbackName.trim().slice(0, 120) : "";
+        const customTitle = typeof body.customTitle === "string" ? body.customTitle.trim().slice(0, 256) || null : null;
+        const customMessage = typeof body.customMessage === "string" ? body.customMessage.trim().slice(0, 3500) || null : null;
 
-        const { data: keyRaw } = await (client as any).rpc("get_roblox_open_cloud_key");
-        const apiKey = typeof keyRaw === "string" && keyRaw.trim() ? keyRaw.trim() : null;
-        void apiKey; // Detail endpoints below are public; key not required.
+        if (!kind || !Number.isSafeInteger(productId) || productId <= 0) return json({ error: "Choose a valid product type and product ID" }, 400);
+        if (kind === "developer_product" && (!Number.isSafeInteger(universeId) || universeId <= 0)) return json({ error: "Developer products require a valid universe ID" }, 400);
 
-        const [thumb, universe, info] = await Promise.all([
+        const [thumbnailUrl, universe, info] = await Promise.all([
           fetchThumbnail(kind, productId),
           universeId > 0 ? fetchUniverseDetails(universeId) : Promise.resolve(null),
-          kind === "game_pass"
-            ? fetchGamePassInfo(productId)
-            : universeId > 0
-              ? fetchDeveloperProductFromList(universeId, productId)
-              : Promise.resolve(null),
+          kind === "game_pass" ? fetchGamePassInfo(productId) : fetchDeveloperProductInfo(universeId, productId),
         ]);
 
-        if (!thumb) warnings.push("Thumbnail unavailable");
-        if (!info) warnings.push(
-          kind === "developer_product"
-            ? "Product details could not be fetched (Roblox does not expose a public per-product endpoint; owner scans may be required)."
-            : "Game pass details could not be fetched.",
-        );
-        if (universeId > 0 && !universe) warnings.push("Experience details unavailable");
-
-        return json({
+        const name = info?.name || fallbackName || `${displayKind(kind)} ${productId}`;
+        const details = {
           kind,
           productId,
           universeId: universeId || null,
           placeId: placeId || null,
-          name: info?.name ?? null,
+          name,
           description: info?.description ?? null,
           priceInRobux: info?.priceInRobux ?? null,
-          isForSale: (info as any)?.isForSale ?? (info as any)?.shopEnabled ?? null,
+          isForSale: info?.isForSale ?? null,
           iconImageAssetId: info?.iconImageAssetId ?? null,
           createdAt: info?.createdAt ?? null,
-          thumbnailUrl: thumb,
+          thumbnailUrl,
           experienceName: universe?.name ?? null,
           creatorName: universe?.creatorName ?? null,
           creatorType: universe?.creatorType ?? null,
           creatorId: universe?.creatorId ?? null,
-          warnings,
-          source: kind === "game_pass"
-            ? "https://apis.roblox.com/game-passes/v1"
-            : "https://apis.roblox.com/developer-products/v2 (universe list)",
-        });
+          url: kind === "game_pass"
+            ? `https://www.roblox.com/game-pass/${productId}`
+            : placeId > 0
+              ? `https://www.roblox.com/games/${placeId}#!/store`
+              : `https://create.roblox.com/dashboard/creations/experiences/${universeId}/monetization`,
+          warnings: [
+            ...(!thumbnailUrl ? ["Thumbnail unavailable"] : []),
+            ...(!info ? ["Roblox product details were unavailable, so fallback values were used"] : []),
+            ...(universeId > 0 && !universe ? ["Experience details unavailable"] : []),
+          ],
+        };
+
+        const embed = buildTestEmbed(details, customTitle, customMessage);
+        if (action === "send_test_embed") {
+          try {
+            const { sendDiscord } = await import("@/lib/tracker.server");
+            const messageId = await sendDiscord({ embeds: [embed] });
+            return json({ sent: true, messageId, details, embed });
+          } catch (error) {
+            return json({ error: error instanceof Error ? error.message : String(error), details, embed }, 502);
+          }
+        }
+
+        return json({ sent: false, details, embed });
       },
     },
   },
