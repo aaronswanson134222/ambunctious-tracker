@@ -18,9 +18,6 @@ export const Route = createFileRoute("/api/auth/pin")({
       POST: async ({ request }) => {
         let stage = "request";
         try {
-          // Lovable terminates requests behind a reverse proxy, so request.url can
-          // contain an internal origin while the browser sends the public origin.
-          // Sec-Fetch-Site is proxy-safe and still blocks cross-site form requests.
           const fetchSite = request.headers.get("sec-fetch-site");
           if (fetchSite === "cross-site") {
             return json({ error: "Unauthorized", code: "AUTH_ORIGIN" }, 401);
@@ -59,9 +56,18 @@ export const Route = createFileRoute("/api/auth/pin")({
           pin = "";
 
           if (error) {
-            console.error("PIN verification RPC failed", error.message);
+            console.error("PIN verification RPC failed", error);
             return json(
-              { error: "Sign-in is temporarily unavailable", code: "AUTH_VERIFY" },
+              {
+                error: "Sign-in is temporarily unavailable",
+                code: "AUTH_VERIFY",
+                diagnostic: {
+                  message: typeof error.message === "string" ? error.message : "Unknown Supabase RPC error",
+                  postgresCode: typeof error.code === "string" ? error.code : null,
+                  details: typeof error.details === "string" ? error.details : null,
+                  hint: typeof error.hint === "string" ? error.hint : null,
+                },
+              },
               503,
             );
           }
@@ -108,7 +114,11 @@ export const Route = createFileRoute("/api/auth/pin")({
           if (signInError || !signIn.session) {
             console.error("PIN authentication session exchange failed", signInError?.message);
             return json(
-              { error: "Sign-in is temporarily unavailable", code: "AUTH_EXCHANGE" },
+              {
+                error: "Sign-in is temporarily unavailable",
+                code: "AUTH_EXCHANGE",
+                diagnostic: signInError?.message ?? "No session returned",
+              },
               503,
             );
           }
@@ -123,6 +133,7 @@ export const Route = createFileRoute("/api/auth/pin")({
             {
               error: "Sign-in is temporarily unavailable",
               code: `AUTH_${stage.toUpperCase()}`,
+              diagnostic: error instanceof Error ? error.message : "Unknown server error",
             },
             503,
           );
