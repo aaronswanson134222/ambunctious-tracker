@@ -18,39 +18,64 @@ export const Route = createFileRoute("/api/auth/pin")({
       POST: async ({ request }) => {
         let stage = "request";
         try {
-          const requestUrl = new URL(request.url);
-          const origin = request.headers.get("origin");
-          if (origin && origin !== requestUrl.origin) {
-            return json({ error: "Unauthorized" }, 401);
+          // Lovable terminates requests behind a reverse proxy, so request.url can
+          // contain an internal origin while the browser sends the public origin.
+          // Sec-Fetch-Site is proxy-safe and still blocks cross-site form requests.
+          const fetchSite = request.headers.get("sec-fetch-site");
+          if (fetchSite === "cross-site") {
+            return json({ error: "Unauthorized", code: "AUTH_ORIGIN" }, 401);
           }
+
+          const contentType = request.headers.get("content-type") ?? "";
+          if (!contentType.toLowerCase().startsWith("application/json")) {
+            return json({ error: "Invalid request", code: "AUTH_CONTENT_TYPE" }, 400);
+          }
+
           const declaredLength = Number(request.headers.get("content-length"));
           if (Number.isFinite(declaredLength) && declaredLength > 256) {
-            return json({ error: "Invalid request" }, 400);
+            return json({ error: "Invalid request", code: "AUTH_SIZE" }, 400);
           }
 
           let pin = "";
           try {
-            const body = await request.json() as { pin?: unknown };
-            pin = typeof body.pin === "string" ? body.pin : "";
+            const body = (await request.json()) as { pin?: unknown };
+            pin = typeof body.pin === "string" ? body.pin.trim() : "";
           } catch {
-            return json({ error: "Invalid request" }, 400);
+            return json({ error: "Invalid request", code: "AUTH_BODY" }, 400);
           }
+
           if (!/^\d{6}$/.test(pin)) {
-            return json({ error: "Invalid PIN or temporarily locked" }, 401);
+            return json({ error: "Enter the six-digit owner PIN.", code: "AUTH_PIN_FORMAT" }, 401);
           }
 
           stage = "admin";
           const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+
           stage = "verify";
-          const { data, error } = await (supabaseAdmin as any)
-            .rpc("authenticate_tracker_pin", { candidate: pin });
+          const { data, error } = await (supabaseAdmin as any).rpc(
+            "authenticate_tracker_pin",
+            { candidate: pin },
+          );
           pin = "";
+
+          if (error) {
+            console.error("PIN verification RPC failed", error.message);
+            return json(
+              { error: "Sign-in is temporarily unavailable", code: "AUTH_VERIFY" },
+              503,
+            );
+          }
+
           const credentials = (data as Array<{
             owner_email?: string;
             internal_password?: string;
           }> | null)?.[0];
-          if (error || !credentials?.owner_email || !credentials.internal_password) {
-            return json({ error: "Invalid PIN or temporarily locked" }, 401);
+
+          if (!credentials?.owner_email || !credentials.internal_password) {
+            return json(
+              { error: "Incorrect PIN or sign-in is temporarily locked.", code: "AUTH_INVALID_PIN" },
+              401,
+            );
           }
 
           stage = "config";
@@ -58,7 +83,10 @@ export const Route = createFileRoute("/api/auth/pin")({
           const publishableKey = process.env.SUPABASE_PUBLISHABLE_KEY;
           if (!supabaseUrl || !publishableKey) {
             console.error("PIN authentication is missing Supabase server configuration");
-            return json({ error: "Sign-in is temporarily unavailable", code: "AUTH_CONFIG" }, 503);
+            return json(
+              { error: "Sign-in is temporarily unavailable", code: "AUTH_CONFIG" },
+              503,
+            );
           }
 
           stage = "exchange";
@@ -70,14 +98,19 @@ export const Route = createFileRoute("/api/auth/pin")({
               autoRefreshToken: false,
             },
           });
+
           const { data: signIn, error: signInError } =
             await authClient.auth.signInWithPassword({
               email: credentials.owner_email,
               password: credentials.internal_password,
             });
+
           if (signInError || !signIn.session) {
             console.error("PIN authentication session exchange failed", signInError?.message);
-            return json({ error: "Sign-in is temporarily unavailable", code: "AUTH_EXCHANGE" }, 503);
+            return json(
+              { error: "Sign-in is temporarily unavailable", code: "AUTH_EXCHANGE" },
+              503,
+            );
           }
 
           return json({
@@ -86,10 +119,13 @@ export const Route = createFileRoute("/api/auth/pin")({
           });
         } catch (error) {
           console.error(`PIN authentication failed during ${stage}`, error);
-          return json({
-            error: "Sign-in is temporarily unavailable",
-            code: `AUTH_${stage.toUpperCase()}`,
-          }, 503);
+          return json(
+            {
+              error: "Sign-in is temporarily unavailable",
+              code: `AUTH_${stage.toUpperCase()}`,
+            },
+            503,
+          );
         }
       },
     },
