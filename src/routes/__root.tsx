@@ -8,18 +8,16 @@ import {
   Scripts,
 } from "@tanstack/react-router";
 import { createServerFn } from "@tanstack/react-start";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { Toaster } from "@/components/ui/sonner";
 import { configureSupabase } from "@/integrations/supabase/client";
 
-const SUPABASE_STORAGE_KEY = "ambunctious.supabase.public-config";
-
-type PublicSupabaseConfig = {
-  url: string;
-  publishableKey: string;
+const DEFAULT_SUPABASE_CONFIG = {
+  url: "https://uikjvsfdcomkamjazjyq.supabase.co",
+  publishableKey: "sb_publishable_kibF6dvgyq6Fqh4BJE4s7A_j6_uUrWH",
 };
 
 function NotFoundComponent() {
@@ -53,11 +51,11 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
   );
 }
 
-const getPublicSupabaseConfig = createServerFn({ method: "GET" }).handler(async (): Promise<PublicSupabaseConfig | null> => {
-  const url = process.env.SUPABASE_URL;
-  const publishableKey = process.env.SUPABASE_PUBLISHABLE_KEY;
-  if (!url || !publishableKey) return null;
-  return { url, publishableKey };
+const getPublicSupabaseConfig = createServerFn({ method: "GET" }).handler(async () => {
+  return {
+    url: process.env.SUPABASE_URL || DEFAULT_SUPABASE_CONFIG.url,
+    publishableKey: process.env.SUPABASE_PUBLISHABLE_KEY || DEFAULT_SUPABASE_CONFIG.publishableKey,
+  };
 });
 
 const SOCIAL_IMAGE = "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/64ef8a7e-f1f2-4853-82a0-93052d8f91f2/id-preview-df845111--4643c934-856e-487c-b22f-b0ba8a7abd8c.lovable.app-1784590112283.png";
@@ -113,46 +111,10 @@ function OneMinuteScanUiSync() {
   return null;
 }
 
-function readBrowserConfig(): PublicSupabaseConfig | null {
-  try {
-    const parsed = JSON.parse(window.localStorage.getItem(SUPABASE_STORAGE_KEY) || "null") as Partial<PublicSupabaseConfig> | null;
-    if (typeof parsed?.url !== "string" || typeof parsed?.publishableKey !== "string") return null;
-    if (!parsed.url || !parsed.publishableKey) return null;
-    return { url: parsed.url, publishableKey: parsed.publishableKey };
-  } catch {
-    return null;
-  }
-}
-
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
-  const serverConfig = Route.useLoaderData();
-  const [config, setConfig] = useState<PublicSupabaseConfig | null>(serverConfig);
-  const [hydrated, setHydrated] = useState(false);
-
-  useEffect(() => {
-    setConfig(serverConfig ?? readBrowserConfig());
-    setHydrated(true);
-  }, [serverConfig]);
-
-  if (!hydrated && !serverConfig) {
-    return <div className="flex min-h-screen items-center justify-center bg-background text-sm text-muted-foreground">Loading configuration…</div>;
-  }
-
-  if (!config) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-background px-4 text-foreground">
-        <div className="max-w-lg rounded-2xl border border-white/10 bg-card p-6 text-center shadow-2xl">
-          <h1 className="text-2xl font-semibold">Supabase setup required</h1>
-          <p className="mt-2 text-sm text-muted-foreground">Add your project URL and publishable key to connect this browser to the new Supabase project.</p>
-          <a href="/supabase-settings" className="mt-5 inline-flex h-11 items-center justify-center rounded-xl bg-primary px-5 text-sm font-semibold text-primary-foreground">Open Supabase settings</a>
-        </div>
-        <Toaster />
-      </div>
-    );
-  }
-
-  configureSupabase(config);
+  const publicSupabaseConfig = Route.useLoaderData();
+  configureSupabase(publicSupabaseConfig);
   const tabClass = "inline-flex h-11 min-w-24 items-center justify-center gap-2 rounded-xl px-4 text-sm font-semibold text-muted-foreground transition hover:bg-white/5 hover:text-foreground";
   const activeTabClass = "bg-primary text-primary-foreground shadow-lg hover:bg-primary hover:text-primary-foreground";
 
