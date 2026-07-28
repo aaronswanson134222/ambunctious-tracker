@@ -1,1 +1,4 @@
 project_id = "ssgmvlxzgpxtkqslczml"
+
+[functions.send-embed-test]
+verify_jwt = true
