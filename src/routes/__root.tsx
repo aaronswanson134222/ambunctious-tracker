@@ -118,7 +118,6 @@ function RootComponent() {
       <OneMinuteScanUiSync />
       <nav aria-label="Primary navigation" className="fixed bottom-4 left-1/2 z-50 flex -translate-x-1/2 items-center gap-1 rounded-2xl border border-white/15 bg-card/95 p-1.5 shadow-2xl backdrop-blur-xl">
         <Link to="/" className={tabClass} activeProps={{ className: `${tabClass} ${activeTabClass}` }}>⌂ Dashboard</Link>
-        <Link to="/embed-test" className={tabClass} activeProps={{ className: `${tabClass} ${activeTabClass}` }}>🧪 Testing</Link>
         <Link to="/menu" className={tabClass} activeProps={{ className: `${tabClass} ${activeTabClass}` }}>☰ Menu</Link>
       </nav>
       <div className="pb-24">
