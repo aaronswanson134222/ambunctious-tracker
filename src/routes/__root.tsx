@@ -8,12 +8,19 @@ import {
   Scripts,
 } from "@tanstack/react-router";
 import { createServerFn } from "@tanstack/react-start";
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { Toaster } from "@/components/ui/sonner";
 import { configureSupabase } from "@/integrations/supabase/client";
+
+const SUPABASE_STORAGE_KEY = "ambunctious.supabase.public-config";
+
+type PublicSupabaseConfig = {
+  url: string;
+  publishableKey: string;
+};
 
 function NotFoundComponent() {
   return (
@@ -46,10 +53,10 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
   );
 }
 
-const getPublicSupabaseConfig = createServerFn({ method: "GET" }).handler(async () => {
+const getPublicSupabaseConfig = createServerFn({ method: "GET" }).handler(async (): Promise<PublicSupabaseConfig | null> => {
   const url = process.env.SUPABASE_URL;
   const publishableKey = process.env.SUPABASE_PUBLISHABLE_KEY;
-  if (!url || !publishableKey) throw new Error("Supabase is not configured");
+  if (!url || !publishableKey) return null;
   return { url, publishableKey };
 });
 
@@ -106,10 +113,46 @@ function OneMinuteScanUiSync() {
   return null;
 }
 
+function readBrowserConfig(): PublicSupabaseConfig | null {
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem(SUPABASE_STORAGE_KEY) || "null") as Partial<PublicSupabaseConfig> | null;
+    if (typeof parsed?.url !== "string" || typeof parsed?.publishableKey !== "string") return null;
+    if (!parsed.url || !parsed.publishableKey) return null;
+    return { url: parsed.url, publishableKey: parsed.publishableKey };
+  } catch {
+    return null;
+  }
+}
+
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
-  const publicSupabaseConfig = Route.useLoaderData();
-  configureSupabase(publicSupabaseConfig);
+  const serverConfig = Route.useLoaderData();
+  const [config, setConfig] = useState<PublicSupabaseConfig | null>(serverConfig);
+  const [hydrated, setHydrated] = useState(false);
+
+  useEffect(() => {
+    setConfig(serverConfig ?? readBrowserConfig());
+    setHydrated(true);
+  }, [serverConfig]);
+
+  if (!hydrated && !serverConfig) {
+    return <div className="flex min-h-screen items-center justify-center bg-background text-sm text-muted-foreground">Loading configuration…</div>;
+  }
+
+  if (!config) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background px-4 text-foreground">
+        <div className="max-w-lg rounded-2xl border border-white/10 bg-card p-6 text-center shadow-2xl">
+          <h1 className="text-2xl font-semibold">Supabase setup required</h1>
+          <p className="mt-2 text-sm text-muted-foreground">Add your project URL and publishable key to connect this browser to the new Supabase project.</p>
+          <a href="/supabase-settings" className="mt-5 inline-flex h-11 items-center justify-center rounded-xl bg-primary px-5 text-sm font-semibold text-primary-foreground">Open Supabase settings</a>
+        </div>
+        <Toaster />
+      </div>
+    );
+  }
+
+  configureSupabase(config);
   const tabClass = "inline-flex h-11 min-w-24 items-center justify-center gap-2 rounded-xl px-4 text-sm font-semibold text-muted-foreground transition hover:bg-white/5 hover:text-foreground";
   const activeTabClass = "bg-primary text-primary-foreground shadow-lg hover:bg-primary hover:text-primary-foreground";
 
@@ -119,6 +162,7 @@ function RootComponent() {
       <nav aria-label="Primary navigation" className="fixed bottom-4 left-1/2 z-50 flex -translate-x-1/2 items-center gap-1 rounded-2xl border border-white/15 bg-card/95 p-1.5 shadow-2xl backdrop-blur-xl">
         <Link to="/" className={tabClass} activeProps={{ className: `${tabClass} ${activeTabClass}` }}>⌂ Dashboard</Link>
         <Link to="/menu" className={tabClass} activeProps={{ className: `${tabClass} ${activeTabClass}` }}>☰ Menu</Link>
+        <Link to="/supabase-settings" className={tabClass} activeProps={{ className: `${tabClass} ${activeTabClass}` }}>⚙ Supabase</Link>
       </nav>
       <div className="pb-24">
         <Outlet />
