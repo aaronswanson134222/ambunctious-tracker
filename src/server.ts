@@ -7,7 +7,20 @@ type ServerEntry = {
   fetch: (request: Request, env: unknown, ctx: unknown) => Promise<Response> | Response;
 };
 
+type RuntimeEnv = Record<string, unknown>;
+
 let serverEntryPromise: Promise<ServerEntry> | undefined;
+
+function attachRuntimeEnv(env: unknown) {
+  if (!env || typeof env !== "object") return;
+  for (const [key, value] of Object.entries(env as RuntimeEnv)) {
+    if (typeof value !== "string" || !value) continue;
+    // Lovable's production runtime can provide bindings through the fetch env
+    // object rather than Node's process.env. Mirror only missing values so local
+    // and explicitly configured environment variables keep priority.
+    if (!process.env[key]) process.env[key] = value;
+  }
+}
 
 async function getServerEntry(): Promise<ServerEntry> {
   if (!serverEntryPromise) {
@@ -18,9 +31,26 @@ async function getServerEntry(): Promise<ServerEntry> {
   return serverEntryPromise;
 }
 
+function apiErrorResponse(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error);
+  return Response.json(
+    { error: "Internal server error", detail: message.slice(0, 500) },
+    {
+      status: 500,
+      headers: {
+        "Cache-Control": "no-store, max-age=0",
+        "X-Content-Type-Options": "nosniff",
+      },
+    },
+  );
+}
+
 // h3 swallows in-handler throws into a normal 500 Response with body
 // {"unhandled":true,"message":"HTTPError"} — try/catch alone never fires for those.
-async function normalizeCatastrophicSsrResponse(response: Response): Promise<Response> {
+async function normalizeCatastrophicSsrResponse(
+  response: Response,
+  request: Request,
+): Promise<Response> {
   if (response.status < 500) return response;
   const contentType = response.headers.get("content-type") ?? "";
   if (!contentType.includes("application/json")) return response;
@@ -28,7 +58,11 @@ async function normalizeCatastrophicSsrResponse(response: Response): Promise<Res
   const body = await response.clone().text();
   if (!isH3SwallowedErrorBody(body)) return response;
 
-  console.error(consumeLastCapturedError() ?? new Error(`h3 swallowed SSR error: ${body}`));
+  const captured = consumeLastCapturedError() ?? new Error(`h3 swallowed SSR error: ${body}`);
+  console.error(captured);
+  if (new URL(request.url).pathname.startsWith("/api/")) {
+    return apiErrorResponse(captured);
+  }
   return new Response(renderErrorPage(), {
     status: 500,
     headers: { "content-type": "text/html; charset=utf-8" },
@@ -53,7 +87,9 @@ function withSecurityHeaders(response: Response, request: Request): Response {
   headers.set("Cross-Origin-Resource-Policy", "same-origin");
   let supabaseConnectSources = "https://*.supabase.co wss://*.supabase.co";
   try {
-    const supabaseOrigin = new URL(process.env.SUPABASE_URL ?? "").origin;
+    const supabaseOrigin = new URL(
+      process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL ?? "",
+    ).origin;
     const supabaseSocketOrigin = supabaseOrigin.replace(/^https:/, "wss:");
     supabaseConnectSources += ` ${supabaseOrigin} ${supabaseSocketOrigin}`;
   } catch {
@@ -94,19 +130,25 @@ function withSecurityHeaders(response: Response, request: Request): Response {
 
 export default {
   async fetch(request: Request, env: unknown, ctx: unknown) {
+    // This must happen before the server entry is imported because server-only
+    // modules may read secrets during their first evaluation.
+    attachRuntimeEnv(env);
     try {
       const handler = await getServerEntry();
       const response = await handler.fetch(request, env, ctx);
       return withSecurityHeaders(
-        await normalizeCatastrophicSsrResponse(response),
+        await normalizeCatastrophicSsrResponse(response, request),
         request,
       );
     } catch (error) {
       console.error(error);
-      return withSecurityHeaders(new Response(renderErrorPage(), {
-        status: 500,
-        headers: { "content-type": "text/html; charset=utf-8" },
-      }), request);
+      const response = new URL(request.url).pathname.startsWith("/api/")
+        ? apiErrorResponse(error)
+        : new Response(renderErrorPage(), {
+            status: 500,
+            headers: { "content-type": "text/html; charset=utf-8" },
+          });
+      return withSecurityHeaders(response, request);
     }
   },
 };
