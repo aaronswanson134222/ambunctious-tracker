@@ -159,6 +159,20 @@ async function rpc(name: string, params: Record<string, any> = {}) {
         delete store.locks['tracker_run_lock'];
         saveStore();
         return { data: true, error: null };
+      case 'has_embed_test_webhook': {
+        const present = typeof store.secrets.embed_test_webhook === 'string' && store.secrets.embed_test_webhook.length > 0;
+        return { data: present, error: null };
+      }
+      case 'get_embed_test_webhook': {
+        return { data: store.secrets.embed_test_webhook ?? null, error: null };
+      }
+      case 'set_embed_test_webhook': {
+        const val = typeof params.candidate === 'string' ? params.candidate : '';
+        if (!val) return { data: false, error: new Error('Invalid webhook') };
+        store.secrets.embed_test_webhook = val;
+        saveStore();
+        return { data: true, error: null };
+      }
       default:
         return { data: null, error: new Error(`Unsupported rpc: ${name}`) };
     }

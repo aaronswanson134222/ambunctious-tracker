@@ -248,7 +248,7 @@ function Index() {
     const token = data.session?.access_token;
     if (!token) return;
     const response = await fetch("/api/roblox/key", {
-      headers: { Authorization: `Bearer ${token}` },
+      Authorization: Bearer $trailing
     });
     if (response.ok) {
       const body = (await response.json()) as { configured?: boolean };
@@ -269,7 +269,7 @@ function Index() {
       const response = await fetch("/api/roblox/key", {
         method: "POST",
         headers: {
-          Authorization: `Bearer ${token}`,
+          Authorization: `Bearer ${token}``,
           "Content-Type": "application/json",
         },
         body: JSON.stringify({ key }),
@@ -489,7 +489,7 @@ function Index() {
       const response = await fetch("/api/roblox/force-check", {
         method: "POST",
         headers: {
-          Authorization: `Bearer ${token}`,
+          Authorization: `Bearer ${token}``,
           "Content-Type": "application/json",
         },
         body: JSON.stringify({ trackerId: tracker.id, kind }),
@@ -533,7 +533,7 @@ function Index() {
       const response = await fetch("/api/roblox/experiences", {
         method: "POST",
         headers: {
-          Authorization: `Bearer ${token}`,
+          Authorization: `Bearer ${token}``,
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
@@ -585,7 +585,7 @@ function Index() {
       if (!token) throw new Error("Your secure session expired. Sign in again.");
       const res = await fetch("/api/public/run-checks", {
         method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
+        headers: { Authorization: `Bearer ${token}`` },
       });
       const body = await res.json();
       if (!res.ok) throw new Error(body?.error || "The check could not be completed.");
@@ -1885,3 +1885,4 @@ function ExperienceItemsPanel({
     </div>
   );
 }
+

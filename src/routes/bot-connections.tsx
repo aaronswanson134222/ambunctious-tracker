@@ -126,7 +126,7 @@ function BotConnections() {
       const token = await accessToken();
       if (!token) throw new Error("Sign into the tracker first.");
       const response = await fetch("/api/bot-connections/status", {
-        headers: { Authorization: `Bearer ${token}` },
+        Authorization: Bearer $trailing
       });
       const body = (await response.json()) as StatusData & { error?: string };
       if (!response.ok) throw new Error(body.error || "Could not load connection status.");
@@ -146,7 +146,7 @@ function BotConnections() {
       if (!token) throw new Error("Sign into the tracker first.");
       const response = await fetch("/api/bot-connections/test-dm", {
         method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
+        headers: { Authorization: `Bearer ${token}`` },
       });
       const body = (await response.json()) as {
         sent?: boolean;
@@ -401,3 +401,4 @@ function BotConnections() {
     </main>
   );
 }
+

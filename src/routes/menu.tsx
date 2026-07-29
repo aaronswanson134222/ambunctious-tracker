@@ -108,7 +108,7 @@ function EmbedTester() {
       if (token) {
         try {
           const response = await fetch("/api/roblox/product-details", {
-            headers: { Authorization: `Bearer ${token}` },
+            Authorization: Bearer $trailing
           });
           const body = (await response.json()) as { webhookConfigured?: boolean };
           if (response.ok) setWebhookConfigured(body.webhookConfigured === true);
@@ -151,7 +151,7 @@ function EmbedTester() {
       const response = await fetch("/api/roblox/product-details", {
         method: "POST",
         headers: {
-          Authorization: `Bearer ${token}`,
+          Authorization: `Bearer ${token}``,
           "Content-Type": "application/json",
         },
         body: JSON.stringify({ action: "save_embed_webhook", webhook: value }),
@@ -186,7 +186,7 @@ function EmbedTester() {
       const response = await fetch("/api/roblox/product-details", {
         method: "POST",
         headers: {
-          Authorization: `Bearer ${token}`,
+          Authorization: `Bearer ${token}``,
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
@@ -492,3 +492,4 @@ function MainMenu() {
     </main>
   );
 }
+

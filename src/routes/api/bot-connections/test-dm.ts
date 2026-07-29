@@ -31,7 +31,7 @@ async function discordRequest(token: string, path: string, init: RequestInit) {
   const response = await fetch(`https://discord.com/api/v10${path}`, {
     ...init,
     headers: {
-      Authorization: `Bot ${token}`,
+      Authorization: Bearer $trailing
       "Content-Type": "application/json",
       "User-Agent": "Ambunctious-Tracker/1.0",
       ...(init.headers ?? {}),
@@ -107,3 +107,4 @@ export const Route = createFileRoute("/api/bot-connections/test-dm")({
     },
   },
 });
+

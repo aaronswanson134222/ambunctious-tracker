@@ -31,7 +31,7 @@ function PrivateAlerts() {
         return;
       }
       const response = await fetch("/api/private-alerts/settings", {
-        headers: { Authorization: `Bearer ${auth}` },
+        Authorization: Bearer $trailing
       });
       const body = (await response.json()) as { configured?: boolean };
       setConfigured(body.configured === true);
@@ -48,7 +48,7 @@ function PrivateAlerts() {
       if (!auth) throw new Error("Sign into the tracker first.");
       const response = await fetch("/api/private-alerts/settings", {
         method: "POST",
-        headers: { Authorization: `Bearer ${auth}`, "Content-Type": "application/json" },
+        headers: { Authorization: `Bearer ${token}``, "Content-Type": "application/json" },
         body: JSON.stringify({ botToken, discordUserId }),
       });
       const body = (await response.json()) as { configured?: boolean; error?: string };
@@ -163,3 +163,4 @@ function PrivateAlerts() {
     </main>
   );
 }
+

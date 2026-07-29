@@ -96,7 +96,7 @@ export function ProductDetailsDialog({
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
+            Authorization: Bearer $trailing
           },
           body: JSON.stringify({
             productId: input.productId,
@@ -384,3 +384,5 @@ export function ProductDetailsDialog({
     </Dialog>
   );
 }
+
+

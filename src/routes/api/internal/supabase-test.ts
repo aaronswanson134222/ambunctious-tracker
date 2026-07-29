@@ -43,7 +43,7 @@ export const Route = createFileRoute("/api/internal/supabase-test")({
         try {
           const res = await fetch(target, {
             method: "GET",
-            headers: { apikey: svc, Authorization: `Bearer ${svc}` },
+            Authorization: Bearer $trailing
           });
           const text = await res.text().catch(() => "");
           if (!res.ok && res.status !== 404) return json({ error: text || `Supabase returned ${res.status}` }, 502);
@@ -55,3 +55,4 @@ export const Route = createFileRoute("/api/internal/supabase-test")({
     },
   },
 });
+

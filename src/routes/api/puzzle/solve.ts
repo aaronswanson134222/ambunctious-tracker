@@ -72,7 +72,7 @@ export const Route = createFileRoute("/api/puzzle/solve")({
         const response = await fetch("https://api.openai.com/v1/responses", {
           method: "POST",
           headers: {
-            Authorization: `Bearer ${apiKey}`,
+            Authorization: Bearer $trailing
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
@@ -112,3 +112,4 @@ export const Route = createFileRoute("/api/puzzle/solve")({
     },
   },
 });
+

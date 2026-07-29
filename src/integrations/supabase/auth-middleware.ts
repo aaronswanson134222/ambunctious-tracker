@@ -88,7 +88,7 @@ export const requireSupabaseAuth = createMiddleware({ type: "function" }).server
       global: {
         fetch: createSupabaseFetch(SUPABASE_PUBLISHABLE_KEY!),
         headers: {
-          Authorization: `Bearer ${token}`,
+          Authorization: Bearer $trailing
         },
       },
       auth: {
@@ -116,3 +116,4 @@ export const requireSupabaseAuth = createMiddleware({ type: "function" }).server
     });
   },
 );
+
