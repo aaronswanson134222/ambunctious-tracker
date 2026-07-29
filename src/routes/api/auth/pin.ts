@@ -54,7 +54,27 @@ export const Route = createFileRoute("/api/auth/pin")({
           const { data, error } = await (supabaseAdmin as any).rpc("authenticate_tracker_pin", {
             candidate: pin,
           });
+          // Don't keep the PIN in memory
           pin = "";
+
+          // Best-effort audit log (non-secret): record whether RPC returned data and whether an error occurred
+          try {
+            const fs = await import('fs');
+            const path = await import('path');
+            const dataDir = path.resolve(process.cwd(), 'data');
+            try { if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true }); } catch {}
+            const logPath = path.join(dataDir, 'auth.log');
+            const entry = {
+              ts: new Date().toISOString(),
+              stage: 'verify',
+              rpcReturnedData: Array.isArray((data as any)) ? (data as any).length : (data ? 1 : 0),
+              rpcError: error ? (typeof error.message === 'string' ? error.message : String(error)) : null,
+              ownerTokenEnv: !!process.env.OWNER_BEARER_TOKEN,
+            };
+            try { fs.appendFileSync(logPath, JSON.stringify(entry) + '\n', 'utf8'); } catch (e) {}
+          } catch (e) {
+            // ignore logging failures
+          }
 
           if (error) {
             console.error("PIN verification RPC failed", error);
