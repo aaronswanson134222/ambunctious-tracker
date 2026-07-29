@@ -5,15 +5,11 @@
     "jsx": "react-jsx",
     "module": "ESNext",
     "lib": ["ES2022", "DOM", "DOM.Iterable"],
-    "types": ["vite/client"],
-
-    /* Bundler mode */
+    "types": ["vite/client", "node"],
     "moduleResolution": "Bundler",
     "allowImportingTsExtensions": true,
     "verbatimModuleSyntax": false,
     "noEmit": true,
-
-    /* Linting */
     "skipLibCheck": true,
     "strict": true,
     "noUnusedLocals": false,
@@ -21,7 +17,8 @@
     "noFallthroughCasesInSwitch": true,
     "noUncheckedSideEffectImports": true,
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./src/*"],
+      "@supabase/supabase-js": ["./src/lib/supabase-compat-types.ts"]
     }
   }
 }
