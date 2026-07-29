@@ -293,13 +293,22 @@ function Index() {
       setUser(data.session?.user ?? null);
       setAuthLoading(false);
     });
-    const { data } = supabase.auth.onAuthStateChange((_event, session) => {
+    const subResponse = supabase.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user ?? null);
       setAuthLoading(false);
     });
     return () => {
       active = false;
-      data.subscription.unsubscribe();
+      try {
+        // Support different shapes from supabase client / shim
+        if (subResponse?.data?.subscription?.unsubscribe) {
+          subResponse.data.subscription.unsubscribe();
+        } else if (subResponse?.subscription?.unsubscribe) {
+          subResponse.subscription.unsubscribe();
+        }
+      } catch (e) {
+        // ignore cleanup errors
+      }
     };
   }, []);
 
