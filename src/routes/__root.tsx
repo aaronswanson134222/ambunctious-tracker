@@ -162,6 +162,13 @@ function OneMinuteScanUiSync() {
 
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
+  // Import the client-side error reporter only in browsers to capture runtime errors and send to /api/report-error
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      import('../client/error-reporter').catch(() => {});
+    }
+  }, []);
+
   const tabClass =
     "inline-flex h-11 min-w-24 items-center justify-center gap-2 rounded-xl px-4 text-sm font-semibold text-muted-foreground transition hover:bg-white/5 hover:text-foreground";
   const activeTabClass =
