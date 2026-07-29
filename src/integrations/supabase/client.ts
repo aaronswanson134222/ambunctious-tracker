@@ -11,19 +11,30 @@ export function configureSupabase(_config: { url: string; publishableKey: string
 }
 
 function makeAuth() {
+  // LocalStorage session shape: expect an object similar to { session: { access_token, refresh_token, user } }
+  function readSession() {
+    try {
+      const raw = typeof window !== 'undefined' ? window.localStorage.getItem(STORAGE_KEY) : null;
+      return raw ? JSON.parse(raw) : null;
+    } catch (e) {
+      return null;
+    }
+  }
+
   return {
     async getSession() {
       try {
-        const raw = typeof window !== 'undefined' ? window.localStorage.getItem(STORAGE_KEY) : null;
-        const session = raw ? JSON.parse(raw) : null;
-        return { data: session };
+        const session = readSession();
+        // Match Supabase client shape: { data: { session } }
+        return { data: { session } };
       } catch (err) {
-        return { data: null };
+        return { data: { session: null } };
       }
     },
     async setSession(session: unknown) {
       try {
         if (typeof window !== 'undefined') window.localStorage.setItem(STORAGE_KEY, JSON.stringify(session));
+        // fire storage event-like callback by writing and reading
         return { error: null };
       } catch (err) {
         return { error: String(err) };
@@ -37,16 +48,77 @@ function makeAuth() {
         return { error: String(err) };
       }
     },
-    onAuthStateChange() {
-      // No-op: compatibility only
-      return { data: null };
+    onAuthStateChange(cb?: (event: string, session: any) => void) {
+      // Minimal implementation: notify on storage changes in same origin and return subscription object like Supabase does.
+      const listener = (ev: StorageEvent) => {
+        if (ev.key !== STORAGE_KEY) return;
+        try {
+          const newSession = ev.newValue ? JSON.parse(ev.newValue) : null;
+          cb?.('SIGNED_IN', { session: newSession });
+        } catch (e) {
+          cb?.('SIGNED_OUT', { session: null });
+        }
+      };
+      if (typeof window !== 'undefined' && window.addEventListener) {
+        window.addEventListener('storage', listener);
+      }
+      const subscription = {
+        unsubscribe: () => {
+          try {
+            if (typeof window !== 'undefined' && window.removeEventListener) window.removeEventListener('storage', listener);
+          } catch {}
+        },
+      };
+      return { data: { subscription } };
     },
   };
 }
 
+function makeQuery(table: string, columns?: string) {
+  const state: any = { columns: columns || '*', filters: [], order: null, limit: null };
+  const q: any = {
+    order(col: string, opts?: { ascending?: boolean }) {
+      state.order = { col, ascending: opts?.ascending === true };
+      return q;
+    },
+    limit(n: number) {
+      state.limit = n;
+      return q;
+    },
+    eq(col: string, value: any) {
+      state.filters.push({ type: 'eq', col, value });
+      return q;
+    },
+    // allow single() usage: returns first item or null
+    async single() {
+      const res = await q;
+      if (res?.data && Array.isArray(res.data)) return { data: res.data[0], error: res.error };
+      return res;
+    },
+    // thenable so awaiting the query works: perform fetch with composed state
+    then(resolve: any, reject: any) {
+      (async () => {
+        try {
+          const res = await fetch('/api/compat', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'select', table, payload: state }),
+          });
+          const json = await res.json();
+          return resolve ? resolve(json) : json;
+        } catch (err) {
+          if (reject) return reject(err);
+          throw err;
+        }
+      })();
+    },
+  };
+  return q;
+}
+
 function from(table: string) {
   return {
-    async insert(payload: any) {
+    insert: async (payload: any) => {
       const res = await fetch('/api/compat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -54,14 +126,7 @@ function from(table: string) {
       });
       return await res.json();
     },
-    async select(columns?: string) {
-      const res = await fetch('/api/compat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'select', table, payload: { columns: columns || '*' } }),
-      });
-      return await res.json();
-    },
+    select: (columns?: string) => makeQuery(table, columns),
     delete: () => ({
       eq: async (col: string, value: any) => {
         const res = await fetch('/api/compat', {
@@ -83,9 +148,10 @@ function from(table: string) {
       },
     }),
     single: async function () {
-      const sel = await this.select('*');
-      if (sel?.data && Array.isArray(sel.data)) return { data: sel.data[0], error: sel.error };
-      return sel;
+      const sel = await makeQuery(table, '*');
+      const res = await sel;
+      if (res?.data && Array.isArray(res.data)) return { data: res.data[0], error: res.error };
+      return res;
     },
   };
 }
