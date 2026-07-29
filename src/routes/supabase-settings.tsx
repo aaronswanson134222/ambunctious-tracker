@@ -68,13 +68,15 @@ function SupabaseSettings() {
     if (!config) return;
     setTesting(true);
     try {
-      const response = await fetch(`${config.url}/rest/v1/`, {
-        method: "GET",
-        headers: {
-          apikey: config.publishableKey,
-          Authorization: `Bearer ${config.publishableKey}`,
-        },
+      const resp = await fetch(`/api/internal/supabase-test`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: config.url }),
       });
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => null);
+        throw new Error(err?.error || `Supabase test failed (${resp.status})`);
+      }
       if (!response.ok && response.status !== 404)
         throw new Error(`Supabase returned HTTP ${response.status}`);
       toast.success("Supabase connection looks valid.");
