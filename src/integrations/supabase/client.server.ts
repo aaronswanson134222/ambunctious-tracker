@@ -1,3 +1,4 @@
+import { createHmac, timingSafeEqual } from "node:crypto";
 import { getState, matches, newRow, saveState, type Row } from "@/lib/local-store.server";
 
 class Query {
@@ -49,14 +50,22 @@ class Query {
   }
 }
 
-const sessions = new Set<string>();
+function sessionSecret() { return process.env.APP_SECRET || process.env.CRON_SECRET || process.env.OWNER_PIN || "change-me"; }
+function sign(value: string) { return createHmac("sha256", sessionSecret()).update(value).digest("hex"); }
+function createSession() { const payload = `owner.${Date.now() + 7 * 86_400_000}`; return `${payload}.${sign(payload)}`; }
+function validSession(token: string) {
+  const match = token.match(/^owner\.(\d+)\.([a-f0-9]{64})$/i); if (!match || Number(match[1]) < Date.now()) return false;
+  const payload = `owner.${match[1]}`; const expected = Buffer.from(sign(payload)); const actual = Buffer.from(match[2]);
+  return expected.length === actual.length && timingSafeEqual(expected, actual);
+}
+
 export const supabaseAdmin: any = {
   from(table: string) { return new Query(table); },
-  auth: { async getUser(token: string) { const valid = sessions.has(token) || token === process.env.OWNER_SESSION_TOKEN; return valid ? { data: { user: { id: "owner", email: process.env.OWNER_EMAIL ?? "owner@local" } }, error: null } : { data: { user: null }, error: { message: "Invalid session" } }; } },
+  auth: { async getUser(token: string) { const valid = validSession(token) || token === process.env.OWNER_SESSION_TOKEN; return valid ? { data: { user: { id: "owner", email: process.env.OWNER_EMAIL ?? "owner@local" } }, error: null } : { data: { user: null }, error: { message: "Invalid session" } }; } },
   async rpc(name: string, args: Record<string, any> = {}) {
     const state = await getState();
     switch (name) {
-      case "authenticate_tracker_pin": { const expected = process.env.OWNER_PIN ?? ""; if (!expected || args.candidate !== expected) return { data: [], error: null }; const token = crypto.randomUUID().replace(/-/g, ""); sessions.add(token); return { data: [{ owner_email: process.env.OWNER_EMAIL ?? "owner@local", internal_password: token }], error: null }; }
+      case "authenticate_tracker_pin": { const expected = process.env.OWNER_PIN ?? ""; if (!expected || args.candidate !== expected) return { data: [], error: null }; return { data: [{ owner_email: process.env.OWNER_EMAIL ?? "owner@local", internal_password: createSession() }], error: null }; }
       case "verify_tracker_owner_email": return { data: args.candidate === (process.env.OWNER_EMAIL ?? "owner@local"), error: null };
       case "verify_tracker_cron_secret": return { data: Boolean(process.env.CRON_SECRET) && args.candidate === process.env.CRON_SECRET, error: null };
       case "acquire_tracker_run_lock": if (state.lockUntil > Date.now()) return { data: false, error: null }; state.lockUntil = Date.now() + 55_000; await saveState(); return { data: true, error: null };
@@ -70,5 +79,4 @@ export const supabaseAdmin: any = {
       default: return { data: null, error: { message: `Unknown local RPC: ${name}` } };
     }
   },
-  _registerSession(token: string) { sessions.add(token); },
 };
