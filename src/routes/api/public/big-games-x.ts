@@ -38,7 +38,7 @@ export const Route = createFileRoute("/api/public/big-games-x")({
       GET: async () => Response.json({ error: "Method not allowed" }, { status: 405 }),
       POST: async ({ request }) => {
         const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-        if (!await authorised(request, supabaseAdmin)) {
+        if (!(await authorised(request, supabaseAdmin))) {
           return Response.json({ error: "Unauthorized" }, { status: 401 });
         }
 
@@ -56,36 +56,45 @@ export const Route = createFileRoute("/api/public/big-games-x")({
           .maybeSingle();
         if (stateError) throw new Error(stateError.message);
 
-        const previousId = typeof state?.last_post_id === "string"
-          ? state.last_post_id
-          : state?.last_post_id != null
-            ? String(state.last_post_id)
-            : null;
+        const previousId =
+          typeof state?.last_post_id === "string"
+            ? state.last_post_id
+            : state?.last_post_id != null
+              ? String(state.last_post_id)
+              : null;
         const isNew = previousId !== null && BigInt(latestId) > BigInt(previousId);
 
         if (isNew) {
           const replyIntent = `https://twitter.com/intent/tweet?in_reply_to=${latestId}&text=${encodeURIComponent("first")}`;
           await sendDiscord({
-            embeds: [{
-              author: { name: "BIG GAMES // NEW X POST" },
-              title: "BIG Games just posted",
-              url: postUrl,
-              description: (postText?.slice(0, 700) || "Open the newest BIG Games post.") +
-                `\n\n[Reply “first” on X](${replyIntent}) · [Open puzzle solver](https://ambunctious-tracker.lovable.app/puzzle)`,
-              color: 0x1da1f2,
-              footer: { text: "Replying is always confirmed by you in X — never posted automatically" },
-              timestamp: new Date().toISOString(),
-            }],
+            embeds: [
+              {
+                author: { name: "BIG GAMES // NEW X POST" },
+                title: "BIG Games just posted",
+                url: postUrl,
+                description:
+                  (postText?.slice(0, 700) || "Open the newest BIG Games post.") +
+                  `\n\n[Reply “first” on X](${replyIntent}) · [Open puzzle solver](https://ambunctious-tracker.lovable.app/puzzle)`,
+                color: 0x1da1f2,
+                footer: {
+                  text: "Replying is always confirmed by you in X — never posted automatically",
+                },
+                timestamp: new Date().toISOString(),
+              },
+            ],
           });
         }
 
-        const { error: saveError } = await db.from("tracker_big_games_x_state").upsert({
-          singleton: true,
-          last_post_id: latestId,
-          last_post_url: postUrl,
-          last_post_text: postText,
-          checked_at: new Date().toISOString(),
-        }, { onConflict: "singleton" });
+        const { error: saveError } = await db.from("tracker_big_games_x_state").upsert(
+          {
+            singleton: true,
+            last_post_id: latestId,
+            last_post_url: postUrl,
+            last_post_text: postText,
+            checked_at: new Date().toISOString(),
+          },
+          { onConflict: "singleton" },
+        );
         if (saveError) throw new Error(saveError.message);
 
         return Response.json({ checked: true, found: true, alerted: isNew, post_id: latestId });

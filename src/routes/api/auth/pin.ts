@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
 import { createFileRoute } from "@tanstack/react-router";
 
 function json(body: unknown, status = 200) {
@@ -49,10 +51,9 @@ export const Route = createFileRoute("/api/auth/pin")({
           const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
           stage = "verify";
-          const { data, error } = await (supabaseAdmin as any).rpc(
-            "authenticate_tracker_pin",
-            { candidate: pin },
-          );
+          const { data, error } = await (supabaseAdmin as any).rpc("authenticate_tracker_pin", {
+            candidate: pin,
+          });
           pin = "";
 
           if (error) {
@@ -62,7 +63,10 @@ export const Route = createFileRoute("/api/auth/pin")({
                 error: "Sign-in is temporarily unavailable",
                 code: "AUTH_VERIFY",
                 diagnostic: {
-                  message: typeof error.message === "string" ? error.message : "Unknown Supabase RPC error",
+                  message:
+                    typeof error.message === "string"
+                      ? error.message
+                      : "Unknown Supabase RPC error",
                   postgresCode: typeof error.code === "string" ? error.code : null,
                   details: typeof error.details === "string" ? error.details : null,
                   hint: typeof error.hint === "string" ? error.hint : null,
@@ -72,14 +76,19 @@ export const Route = createFileRoute("/api/auth/pin")({
             );
           }
 
-          const credentials = (data as Array<{
-            owner_email?: string;
-            internal_password?: string;
-          }> | null)?.[0];
+          const credentials = (
+            data as Array<{
+              owner_email?: string;
+              internal_password?: string;
+            }> | null
+          )?.[0];
 
           if (!credentials?.owner_email || !credentials.internal_password) {
             return json(
-              { error: "Incorrect PIN or sign-in is temporarily locked.", code: "AUTH_INVALID_PIN" },
+              {
+                error: "Incorrect PIN or sign-in is temporarily locked.",
+                code: "AUTH_INVALID_PIN",
+              },
               401,
             );
           }
@@ -89,10 +98,7 @@ export const Route = createFileRoute("/api/auth/pin")({
           const publishableKey = process.env.SUPABASE_PUBLISHABLE_KEY;
           if (!supabaseUrl || !publishableKey) {
             console.error("PIN authentication is missing Supabase server configuration");
-            return json(
-              { error: "Sign-in is temporarily unavailable", code: "AUTH_CONFIG" },
-              503,
-            );
+            return json({ error: "Sign-in is temporarily unavailable", code: "AUTH_CONFIG" }, 503);
           }
 
           stage = "exchange";
@@ -105,11 +111,10 @@ export const Route = createFileRoute("/api/auth/pin")({
             },
           });
 
-          const { data: signIn, error: signInError } =
-            await authClient.auth.signInWithPassword({
-              email: credentials.owner_email,
-              password: credentials.internal_password,
-            });
+          const { data: signIn, error: signInError } = await authClient.auth.signInWithPassword({
+            email: credentials.owner_email,
+            password: credentials.internal_password,
+          });
 
           if (signInError || !signIn.session) {
             console.error("PIN authentication session exchange failed", signInError?.message);

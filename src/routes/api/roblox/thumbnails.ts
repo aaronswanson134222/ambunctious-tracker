@@ -48,7 +48,7 @@ export const Route = createFileRoute("/api/roblox/thumbnails")({
             },
           });
           if (!response.ok) return json({ data: [] });
-          const body = await response.json() as { data?: unknown[] };
+          const body = (await response.json()) as { data?: unknown[] };
           return json({ data: Array.isArray(body.data) ? body.data : [] });
         } catch {
           return json({ data: [] });

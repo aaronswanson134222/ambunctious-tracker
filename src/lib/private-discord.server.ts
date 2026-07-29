@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
 type DiscordPayload = {
   content?: string;
   embeds?: Array<Record<string, unknown>>;
@@ -19,7 +21,9 @@ async function discordRequest(token: string, path: string, init: RequestInit) {
     },
   });
   if (!response.ok) {
-    throw new Error(`Discord bot HTTP ${response.status}: ${(await response.text()).slice(0, 240)}`);
+    throw new Error(
+      `Discord bot HTTP ${response.status}: ${(await response.text()).slice(0, 240)}`,
+    );
   }
   return response.json().catch(() => null);
 }
@@ -34,10 +38,10 @@ export async function sendOwnerDm(payload: DiscordPayload) {
   if (!token || token.length < 30) throw new Error("Discord bot token is not configured");
   if (!/^\d{10,30}$/.test(userId)) throw new Error("Discord user ID is not configured");
 
-  const dm = await discordRequest(token, "/users/@me/channels", {
+  const dm = (await discordRequest(token, "/users/@me/channels", {
     method: "POST",
     body: JSON.stringify({ recipient_id: userId }),
-  }) as { id?: string } | null;
+  })) as { id?: string } | null;
   if (!dm?.id) throw new Error("Discord did not create a DM channel");
 
   await discordRequest(token, `/channels/${dm.id}/messages`, {

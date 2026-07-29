@@ -1,8 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import {
-  checkRobloxExperienceProducts,
-  resolveRobloxUniverseId,
-} from "@/lib/tracker.server";
+import { checkRobloxExperienceProducts, resolveRobloxUniverseId } from "@/lib/tracker.server";
 
 function json(body: unknown, status = 200) {
   return Response.json(body, {
@@ -22,8 +19,10 @@ async function ownerClient(request: Request) {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const { data, error } = await supabaseAdmin.auth.getUser(token);
   if (error || !data.user?.email) return null;
-  const { data: isOwner, error: ownerError } = await (supabaseAdmin as any)
-    .rpc("verify_tracker_owner_email", { candidate: data.user.email });
+  const { data: isOwner, error: ownerError } = await (supabaseAdmin as any).rpc(
+    "verify_tracker_owner_email",
+    { candidate: data.user.email },
+  );
   return !ownerError && isOwner === true ? supabaseAdmin : null;
 }
 
@@ -38,7 +37,7 @@ export const Route = createFileRoute("/api/roblox/experiences")({
         let label = "";
         let lookbackDays = 30;
         try {
-          const body = await request.json() as {
+          const body = (await request.json()) as {
             placeId?: unknown;
             label?: unknown;
             lookbackDays?: unknown;
@@ -58,9 +57,7 @@ export const Route = createFileRoute("/api/roblox/experiences")({
         if (![7, 30, 90, 365].includes(lookbackDays)) lookbackDays = 30;
 
         const db = client as any;
-        const { data: savedKey } = await db.rpc(
-          "get_roblox_open_cloud_key",
-        );
+        const { data: savedKey } = await db.rpc("get_roblox_open_cloud_key");
         const apiKey = typeof savedKey === "string" ? savedKey : null;
 
         try {
@@ -86,16 +83,18 @@ export const Route = createFileRoute("/api/roblox/experiences")({
             .select("*")
             .single();
           if (error) {
-            const duplicate = error.code === "23505"
-              ? "That experience is already being tracked"
-              : error.message;
+            const duplicate =
+              error.code === "23505" ? "That experience is already being tracked" : error.message;
             return json({ error: duplicate }, 400);
           }
           return json({ tracker, baseline_count: products.length });
         } catch (error) {
-          return json({
-            error: error instanceof Error ? error.message : "Roblox experience check failed",
-          }, 502);
+          return json(
+            {
+              error: error instanceof Error ? error.message : "Roblox experience check failed",
+            },
+            502,
+          );
         }
       },
     },

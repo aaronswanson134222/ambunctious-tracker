@@ -26,17 +26,22 @@ async function sendHourlySummary() {
   if (reserveError) throw new Error(`Could not reserve hourly report: ${reserveError.message}`);
 
   try {
-    const [{ data: events, error: eventsError }, xCount, productCount, websiteCount, robloxCount] = await Promise.all([
-      (supabaseAdmin as any)
-        .from("tracker_notification_events")
-        .select("source_type")
-        .gte("sent_at", previousHour.toISOString())
-        .lt("sent_at", hourStart.toISOString()),
-      supabaseAdmin.from("tracked_x_accounts").select("id", { count: "exact", head: true }),
-      supabaseAdmin.from("tracked_products").select("id", { count: "exact", head: true }),
-      (supabaseAdmin as any).from("tracked_websites").select("id", { count: "exact", head: true }),
-      (supabaseAdmin as any).from("tracked_roblox_entities").select("id", { count: "exact", head: true }),
-    ]);
+    const [{ data: events, error: eventsError }, xCount, productCount, websiteCount, robloxCount] =
+      await Promise.all([
+        (supabaseAdmin as any)
+          .from("tracker_notification_events")
+          .select("source_type")
+          .gte("sent_at", previousHour.toISOString())
+          .lt("sent_at", hourStart.toISOString()),
+        supabaseAdmin.from("tracked_x_accounts").select("id", { count: "exact", head: true }),
+        supabaseAdmin.from("tracked_products").select("id", { count: "exact", head: true }),
+        (supabaseAdmin as any)
+          .from("tracked_websites")
+          .select("id", { count: "exact", head: true }),
+        (supabaseAdmin as any)
+          .from("tracked_roblox_entities")
+          .select("id", { count: "exact", head: true }),
+      ]);
 
     if (eventsError) throw new Error(`Could not read tracker activity: ${eventsError.message}`);
 
@@ -87,10 +92,7 @@ async function sendHourlySummary() {
 
     return { sent: true, activity_count: activityTotal, hour_start: hourKey };
   } catch (error) {
-    await (supabaseAdmin as any)
-      .from("tracker_hourly_reports")
-      .delete()
-      .eq("hour_start", hourKey);
+    await (supabaseAdmin as any).from("tracker_hourly_reports").delete().eq("hour_start", hourKey);
     throw error;
   }
 }

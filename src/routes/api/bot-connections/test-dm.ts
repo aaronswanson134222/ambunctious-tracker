@@ -15,8 +15,10 @@ async function ownerClient(request: Request) {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const { data, error } = await supabaseAdmin.auth.getUser(token);
   if (error || !data.user?.email) return null;
-  const { data: isOwner, error: ownerError } = await (supabaseAdmin as any)
-    .rpc("verify_tracker_owner_email", { candidate: data.user.email });
+  const { data: isOwner, error: ownerError } = await (supabaseAdmin as any).rpc(
+    "verify_tracker_owner_email",
+    { candidate: data.user.email },
+  );
   return !ownerError && isOwner === true ? supabaseAdmin : null;
 }
 
@@ -41,7 +43,9 @@ async function discordRequest(token: string, path: string, init: RequestInit) {
     try {
       const parsed = JSON.parse(text) as { message?: string };
       detail = parsed.message || detail;
-    } catch {}
+    } catch (_e) {
+      /* ignore parse errors */
+    }
     throw new Error(`Discord HTTP ${response.status}: ${detail}`);
   }
   return text ? JSON.parse(text) : null;
@@ -63,32 +67,41 @@ export const Route = createFileRoute("/api/bot-connections/test-dm")({
             return json({ error: "Configure your Discord bot token and user ID first." }, 400);
           }
 
-          const bot = await discordRequest(botToken, "/users/@me", { method: "GET" }) as { username?: string } | null;
-          const dm = await discordRequest(botToken, "/users/@me/channels", {
+          const bot = (await discordRequest(botToken, "/users/@me", { method: "GET" })) as {
+            username?: string;
+          } | null;
+          const dm = (await discordRequest(botToken, "/users/@me/channels", {
             method: "POST",
             body: JSON.stringify({ recipient_id: userId }),
-          }) as { id?: string } | null;
+          })) as { id?: string } | null;
           if (!dm?.id) throw new Error("Discord did not create a DM channel.");
 
           const sentAt = new Date().toISOString();
           await discordRequest(botToken, `/channels/${dm.id}/messages`, {
             method: "POST",
             body: JSON.stringify({
-              content: "✅ **Ambunctious Tracker test successful**\n\nYour private Discord alerts are connected and ready. You will receive a DM here when BIG Games posts something new.",
-              embeds: [{
-                title: "Connection confirmed",
-                description: "Discord bot token: valid\nDM recipient: reachable\nBIG Games alert channel: ready",
-                color: 0x22c55e,
-                timestamp: sentAt,
-                footer: { text: "Ambunctious Tracker • Test message" },
-              }],
+              content:
+                "✅ **Ambunctious Tracker test successful**\n\nYour private Discord alerts are connected and ready. You will receive a DM here when BIG Games posts something new.",
+              embeds: [
+                {
+                  title: "Connection confirmed",
+                  description:
+                    "Discord bot token: valid\nDM recipient: reachable\nBIG Games alert channel: ready",
+                  color: 0x22c55e,
+                  timestamp: sentAt,
+                  footer: { text: "Ambunctious Tracker • Test message" },
+                },
+              ],
               allowed_mentions: { parse: [] },
             }),
           });
 
           return json({ sent: true, sentAt, botName: bot?.username ?? "Discord bot" });
         } catch (cause) {
-          return json({ error: cause instanceof Error ? cause.message : "Could not send the test DM." }, 502);
+          return json(
+            { error: cause instanceof Error ? cause.message : "Could not send the test DM." },
+            502,
+          );
         }
       },
     },

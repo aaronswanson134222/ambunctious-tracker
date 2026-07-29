@@ -97,7 +97,7 @@ export async function sendDiscordTestEmbed(embed: Record<string, unknown>) {
 
     if (response.ok) {
       blockedUntil = 0;
-      const result = await response.json().catch(() => null) as { id?: unknown } | null;
+      const result = (await response.json().catch(() => null)) as { id?: unknown } | null;
       return typeof result?.id === "string" ? result.id : null;
     }
 

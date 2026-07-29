@@ -18,8 +18,10 @@ async function ownerClient(request: Request) {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const { data, error } = await supabaseAdmin.auth.getUser(token);
   if (error || !data.user?.email) return null;
-  const { data: isOwner, error: ownerError } = await (supabaseAdmin as any)
-    .rpc("verify_tracker_owner_email", { candidate: data.user.email });
+  const { data: isOwner, error: ownerError } = await (supabaseAdmin as any).rpc(
+    "verify_tracker_owner_email",
+    { candidate: data.user.email },
+  );
   return !ownerError && isOwner === true ? supabaseAdmin : null;
 }
 
@@ -43,7 +45,8 @@ export const Route = createFileRoute("/api/private-alerts/settings")({
           return json({ error: "Invalid request" }, 400);
         }
         const botToken = typeof body.botToken === "string" ? body.botToken.trim() : "";
-        const discordUserId = typeof body.discordUserId === "string" ? body.discordUserId.trim() : "";
+        const discordUserId =
+          typeof body.discordUserId === "string" ? body.discordUserId.trim() : "";
         if (botToken.length < 30 || !/^\d{10,30}$/.test(discordUserId)) {
           return json({ error: "Enter a valid bot token and Discord user ID" }, 400);
         }
@@ -51,7 +54,8 @@ export const Route = createFileRoute("/api/private-alerts/settings")({
           bot_token: botToken,
           discord_user_id: discordUserId,
         });
-        if (error || data !== true) return json({ error: error?.message || "Could not save settings" }, 400);
+        if (error || data !== true)
+          return json({ error: error?.message || "Could not save settings" }, 400);
         return json({ configured: true });
       },
     },

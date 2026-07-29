@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
 export type RobloxPreviewKind = "catalog" | "experience" | "game_pass" | "developer_product";
 
 export type RobloxPreviewInput = {
@@ -64,9 +66,7 @@ async function thumbnailFor(input: RobloxPreviewInput): Promise<string | null> {
     url.searchParams.set("format", "Png");
     url.searchParams.set("isCircular", "false");
     const row = firstRow(await fetchJson(url));
-    return row?.state === "Completed" && typeof row?.imageUrl === "string"
-      ? row.imageUrl
-      : null;
+    return row?.state === "Completed" && typeof row?.imageUrl === "string" ? row.imageUrl : null;
   } catch {
     return null;
   }
@@ -90,7 +90,9 @@ async function universeInfo(universeId: number | null | undefined) {
 
 async function gamePassInfo(id: number) {
   try {
-    const body = await fetchJson(new URL(`https://apis.roblox.com/game-passes/v1/game-passes/${id}`));
+    const body = await fetchJson(
+      new URL(`https://apis.roblox.com/game-passes/v1/game-passes/${id}`),
+    );
     return {
       name: typeof body?.name === "string" ? body.name : null,
       description: typeof body?.description === "string" ? body.description : null,
@@ -118,17 +120,20 @@ async function developerProductInfo(universeId: number | null | undefined, id: n
         : Array.isArray(body?.data)
           ? body.data
           : [];
-      const row = rows.find((value: any) => Number(
-        value?.DeveloperProductId ?? value?.TargetId ?? value?.id ?? value?.productId,
-      ) === id);
+      const row = rows.find(
+        (value: any) =>
+          Number(value?.DeveloperProductId ?? value?.TargetId ?? value?.id ?? value?.productId) ===
+          id,
+      );
       if (row) {
         const price = row.PriceInRobux ?? row.priceInRobux ?? row.Price ?? row.price;
         const sale = row.ShopEnabled ?? row.shopEnabled ?? row.isForSale;
         return {
           name: typeof (row.Name ?? row.name) === "string" ? (row.Name ?? row.name) : null,
-          description: typeof (row.Description ?? row.description) === "string"
-            ? (row.Description ?? row.description)
-            : null,
+          description:
+            typeof (row.Description ?? row.description) === "string"
+              ? (row.Description ?? row.description)
+              : null,
           priceInRobux: Number.isFinite(Number(price)) ? Number(price) : null,
           isForSale: typeof sale === "boolean" ? sale : null,
         };
@@ -184,7 +189,11 @@ export function buildRobloxPreviewEmbed(
     { name: "Product ID", value: `\`${preview.id}\``, inline: true },
   ];
   if (preview.priceInRobux != null) {
-    fields.push({ name: "Price", value: `**R$ ${preview.priceInRobux.toLocaleString("en-GB")}**`, inline: true });
+    fields.push({
+      name: "Price",
+      value: `**R$ ${preview.priceInRobux.toLocaleString("en-GB")}**`,
+      inline: true,
+    });
   }
   if (preview.experienceName) {
     fields.push({ name: "Experience", value: preview.experienceName.slice(0, 1024), inline: true });
@@ -209,16 +218,21 @@ export function buildRobloxPreviewEmbed(
     },
     title: `New ${displayKind(preview.kind)}: ${preview.name}`.slice(0, 256),
     url: preview.url,
-    description: (preview.description || "A new Roblox item was detected by Ambunctious Tracker.").slice(0, 4096),
+    description: (
+      preview.description || "A new Roblox item was detected by Ambunctious Tracker."
+    ).slice(0, 4096),
     color: preview.kind === "developer_product" ? 0x22c55e : 0x00a2ff,
     fields,
-    ...(preview.thumbnailUrl ? {
-      thumbnail: { url: preview.thumbnailUrl },
-      image: { url: preview.thumbnailUrl },
-    } : {}),
+    ...(preview.thumbnailUrl
+      ? {
+          thumbnail: { url: preview.thumbnailUrl },
+          image: { url: preview.thumbnailUrl },
+        }
+      : {}),
     footer: { text: "Ambunctious Tracker • Roblox preview" },
-    timestamp: preview.createdAt && !Number.isNaN(Date.parse(preview.createdAt))
-      ? new Date(preview.createdAt).toISOString()
-      : new Date().toISOString(),
+    timestamp:
+      preview.createdAt && !Number.isNaN(Date.parse(preview.createdAt))
+        ? new Date(preview.createdAt).toISOString()
+        : new Date().toISOString(),
   };
 }

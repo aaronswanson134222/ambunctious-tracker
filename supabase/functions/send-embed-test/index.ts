@@ -36,16 +36,21 @@ function validateWebhook(value: unknown): value is string {
   if (typeof value !== "string") return false;
   try {
     const url = new URL(value);
-    return url.protocol === "https:"
-      && ["discord.com", "discordapp.com"].some((host) => url.hostname === host || url.hostname.endsWith(`.${host}`))
-      && /^\/api\/webhooks\/\d+\/[A-Za-z0-9._-]+\/?$/.test(url.pathname);
+    return (
+      url.protocol === "https:" &&
+      ["discord.com", "discordapp.com"].some(
+        (host) => url.hostname === host || url.hostname.endsWith(`.${host}`),
+      ) &&
+      /^\/api\/webhooks\/\d+\/[A-Za-z0-9._-]+\/?$/.test(url.pathname)
+    );
   } catch {
     return false;
   }
 }
 
 function sanitiseEmbed(input: unknown) {
-  if (!input || typeof input !== "object" || Array.isArray(input)) throw new Error("Invalid embed payload");
+  if (!input || typeof input !== "object" || Array.isArray(input))
+    throw new Error("Invalid embed payload");
   const raw = input as Record<string, unknown>;
   const title = safeString(raw.title, 256);
   const description = safeString(raw.description, 4096);
@@ -54,28 +59,35 @@ function sanitiseEmbed(input: unknown) {
   const timestamp = safeString(raw.timestamp, 64);
 
   const fields = Array.isArray(raw.fields)
-    ? raw.fields.slice(0, 25).map((field) => {
-        if (!field || typeof field !== "object" || Array.isArray(field)) return null;
-        const item = field as Record<string, unknown>;
-        const name = safeString(item.name, 256);
-        const value = safeString(item.value, 1024);
-        if (!name || !value) return null;
-        return { name, value, inline: item.inline === true };
-      }).filter(Boolean)
+    ? raw.fields
+        .slice(0, 25)
+        .map((field) => {
+          if (!field || typeof field !== "object" || Array.isArray(field)) return null;
+          const item = field as Record<string, unknown>;
+          const name = safeString(item.name, 256);
+          const value = safeString(item.value, 1024);
+          if (!name || !value) return null;
+          return { name, value, inline: item.inline === true };
+        })
+        .filter(Boolean)
     : [];
 
-  const authorRaw = raw.author && typeof raw.author === "object" && !Array.isArray(raw.author)
-    ? raw.author as Record<string, unknown>
-    : null;
-  const footerRaw = raw.footer && typeof raw.footer === "object" && !Array.isArray(raw.footer)
-    ? raw.footer as Record<string, unknown>
-    : null;
-  const imageRaw = raw.image && typeof raw.image === "object" && !Array.isArray(raw.image)
-    ? raw.image as Record<string, unknown>
-    : null;
-  const thumbnailRaw = raw.thumbnail && typeof raw.thumbnail === "object" && !Array.isArray(raw.thumbnail)
-    ? raw.thumbnail as Record<string, unknown>
-    : null;
+  const authorRaw =
+    raw.author && typeof raw.author === "object" && !Array.isArray(raw.author)
+      ? (raw.author as Record<string, unknown>)
+      : null;
+  const footerRaw =
+    raw.footer && typeof raw.footer === "object" && !Array.isArray(raw.footer)
+      ? (raw.footer as Record<string, unknown>)
+      : null;
+  const imageRaw =
+    raw.image && typeof raw.image === "object" && !Array.isArray(raw.image)
+      ? (raw.image as Record<string, unknown>)
+      : null;
+  const thumbnailRaw =
+    raw.thumbnail && typeof raw.thumbnail === "object" && !Array.isArray(raw.thumbnail)
+      ? (raw.thumbnail as Record<string, unknown>)
+      : null;
 
   const embed: Record<string, unknown> = {
     ...(title ? { title } : {}),
@@ -83,13 +95,23 @@ function sanitiseEmbed(input: unknown) {
     ...(url ? { url } : {}),
     ...(Number.isInteger(color) && color >= 0 && color <= 0xffffff ? { color } : {}),
     ...(fields.length ? { fields } : {}),
-    ...(timestamp && Number.isFinite(Date.parse(timestamp)) ? { timestamp: new Date(timestamp).toISOString() } : {}),
+    ...(timestamp && Number.isFinite(Date.parse(timestamp))
+      ? { timestamp: new Date(timestamp).toISOString() }
+      : {}),
   };
 
   const authorName = safeString(authorRaw?.name, 256);
-  if (authorName) embed.author = { name: authorName, ...(safeUrl(authorRaw?.icon_url) ? { icon_url: safeUrl(authorRaw?.icon_url) } : {}) };
+  if (authorName)
+    embed.author = {
+      name: authorName,
+      ...(safeUrl(authorRaw?.icon_url) ? { icon_url: safeUrl(authorRaw?.icon_url) } : {}),
+    };
   const footerText = safeString(footerRaw?.text, 2048);
-  if (footerText) embed.footer = { text: footerText, ...(safeUrl(footerRaw?.icon_url) ? { icon_url: safeUrl(footerRaw?.icon_url) } : {}) };
+  if (footerText)
+    embed.footer = {
+      text: footerText,
+      ...(safeUrl(footerRaw?.icon_url) ? { icon_url: safeUrl(footerRaw?.icon_url) } : {}),
+    };
   const imageUrl = safeUrl(imageRaw?.url);
   if (imageUrl) embed.image = { url: imageUrl };
   const thumbnailUrl = safeUrl(thumbnailRaw?.url);
@@ -112,7 +134,10 @@ async function sendDiscord(webhook: string, embed: Record<string, unknown>) {
         method: "POST",
         signal: controller.signal,
         redirect: "manual",
-        headers: { "Content-Type": "application/json", "User-Agent": "Ambunctious-Tracker-Edge/1.0" },
+        headers: {
+          "Content-Type": "application/json",
+          "User-Agent": "Ambunctious-Tracker-Edge/1.0",
+        },
         body: JSON.stringify({ embeds: [embed], allowed_mentions: { parse: [] } }),
       });
     } finally {
@@ -130,7 +155,9 @@ async function sendDiscord(webhook: string, embed: Record<string, unknown>) {
     }
 
     if (response.status !== 429 || attempt === 4) {
-      throw Object.assign(new Error(`Discord webhook ${response.status}: ${text.slice(0, 240)}`), { status: response.status });
+      throw Object.assign(new Error(`Discord webhook ${response.status}: ${text.slice(0, 240)}`), {
+        status: response.status,
+      });
     }
 
     let retryAfterSeconds = Number(response.headers.get("retry-after")) || 0;
@@ -141,7 +168,9 @@ async function sendDiscord(webhook: string, embed: Record<string, unknown>) {
       // Cloudflare may return HTML.
     }
     retryAfterSeconds = Math.min(30, Math.max(1, retryAfterSeconds || attempt * 2));
-    await new Promise((resolve) => setTimeout(resolve, retryAfterSeconds * 1000 + Math.floor(Math.random() * 250)));
+    await new Promise((resolve) =>
+      setTimeout(resolve, retryAfterSeconds * 1000 + Math.floor(Math.random() * 250)),
+    );
   }
   return null;
 }
@@ -152,7 +181,8 @@ Deno.serve(async (request) => {
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL");
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-  if (!supabaseUrl || !serviceRoleKey) return json({ error: "Edge Function is not configured" }, 500);
+  if (!supabaseUrl || !serviceRoleKey)
+    return json({ error: "Edge Function is not configured" }, 500);
 
   const authHeader = request.headers.get("Authorization") ?? "";
   if (!authHeader.startsWith("Bearer ")) return json({ error: "Unauthorized" }, 401);
@@ -163,7 +193,9 @@ Deno.serve(async (request) => {
   const email = userData.user?.email;
   if (userError || !email) return json({ error: "Unauthorized" }, 401);
 
-  const { data: isOwner, error: ownerError } = await admin.rpc("verify_tracker_owner_email", { candidate: email });
+  const { data: isOwner, error: ownerError } = await admin.rpc("verify_tracker_owner_email", {
+    candidate: email,
+  });
   if (ownerError || isOwner !== true) return json({ error: "Forbidden" }, 403);
 
   let body: { embed?: unknown };
@@ -181,13 +213,20 @@ Deno.serve(async (request) => {
   }
 
   const { data: webhook, error: webhookError } = await admin.rpc("get_embed_test_webhook");
-  if (webhookError || !validateWebhook(webhook)) return json({ error: "Add a dedicated embed webhook before sending tests." }, 400);
+  if (webhookError || !validateWebhook(webhook))
+    return json({ error: "Add a dedicated embed webhook before sending tests." }, 400);
 
   try {
     const messageId = await sendDiscord(webhook, embed);
     return json({ sent: true, messageId });
   } catch (error) {
-    const status = typeof (error as { status?: unknown })?.status === "number" ? Number((error as { status?: number }).status) : 502;
-    return json({ error: error instanceof Error ? error.message : "Discord send failed" }, status === 429 ? 429 : 502);
+    const status =
+      typeof (error as { status?: unknown })?.status === "number"
+        ? Number((error as { status?: number }).status)
+        : 502;
+    return json(
+      { error: error instanceof Error ? error.message : "Discord send failed" },
+      status === 429 ? 429 : 502,
+    );
   }
 });

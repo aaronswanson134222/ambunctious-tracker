@@ -19,8 +19,10 @@ async function ownerClient(request: Request) {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const { data, error } = await supabaseAdmin.auth.getUser(token);
   if (error || !data.user?.email) return null;
-  const { data: isOwner, error: ownerError } = await (supabaseAdmin as any)
-    .rpc("verify_tracker_owner_email", { candidate: data.user.email });
+  const { data: isOwner, error: ownerError } = await (supabaseAdmin as any).rpc(
+    "verify_tracker_owner_email",
+    { candidate: data.user.email },
+  );
   return !ownerError && isOwner === true ? supabaseAdmin : null;
 }
 
@@ -34,14 +36,12 @@ export const Route = createFileRoute("/api/roblox/force-check")({
         let trackerId = "";
         let kind: "game_pass" | "developer_product" | null = null;
         try {
-          const body = await request.json() as {
+          const body = (await request.json()) as {
             trackerId?: unknown;
             kind?: unknown;
           };
           trackerId = typeof body.trackerId === "string" ? body.trackerId : "";
-          kind = body.kind === "game_pass" || body.kind === "developer_product"
-            ? body.kind
-            : null;
+          kind = body.kind === "game_pass" || body.kind === "developer_product" ? body.kind : null;
         } catch {
           return json({ error: "Invalid request" }, 400);
         }
@@ -60,9 +60,7 @@ export const Route = createFileRoute("/api/roblox/force-check")({
           return json({ error: "Manual product checks are available for groups only" }, 400);
         }
 
-        const { data: apiKey, error: keyError } = await db.rpc(
-          "get_roblox_open_cloud_key",
-        );
+        const { data: apiKey, error: keyError } = await db.rpc("get_roblox_open_cloud_key");
         if (keyError || typeof apiKey !== "string" || !apiKey.trim()) {
           return json({ error: "Connect your Roblox Open Cloud key first" }, 400);
         }
@@ -82,10 +80,13 @@ export const Route = createFileRoute("/api/roblox/force-check")({
           })[0];
 
           if (!latest) {
-            await db.from("tracked_roblox_entities").update({
-              last_checked_at: new Date().toISOString(),
-              last_error: null,
-            }).eq("id", tracker.id);
+            await db
+              .from("tracked_roblox_entities")
+              .update({
+                last_checked_at: new Date().toISOString(),
+                last_error: null,
+              })
+              .eq("id", tracker.id);
             return json({
               found: false,
               message: `No ${kind === "game_pass" ? "game passes" : "developer products"} were found in the selected timeframe.`,
@@ -93,27 +94,39 @@ export const Route = createFileRoute("/api/roblox/force-check")({
           }
 
           await sendDiscord({
-            embeds: [{
-              author: {
-                name: `MANUAL ROBLOX CHECK // ${tracker.label}`,
-                icon_url: "https://www.roblox.com/favicon.ico",
+            embeds: [
+              {
+                author: {
+                  name: `MANUAL ROBLOX CHECK // ${tracker.label}`,
+                  icon_url: "https://www.roblox.com/favicon.ico",
+                },
+                title: `Latest ${kind === "game_pass" ? "game pass" : "developer product"}: ${latest.name}`,
+                url: latest.url,
+                description: "This item was returned by an owner-requested targeted scan.",
+                thumbnail: { url: "https://www.roblox.com/favicon.ico" },
+                color: 0x00a2ff,
+                fields: latest.createdAt
+                  ? [
+                      {
+                        name: "Created",
+                        value:
+                          new Date(latest.createdAt).toLocaleString("en-GB", { timeZone: "UTC" }) +
+                          " UTC",
+                      },
+                    ]
+                  : [],
+                timestamp: new Date().toISOString(),
               },
-              title: `Latest ${kind === "game_pass" ? "game pass" : "developer product"}: ${latest.name}`,
-              url: latest.url,
-              description: "This item was returned by an owner-requested targeted scan.",
-              thumbnail: { url: "https://www.roblox.com/favicon.ico" },
-              color: 0x00a2ff,
-              fields: latest.createdAt
-                ? [{ name: "Created", value: new Date(latest.createdAt).toLocaleString("en-GB", { timeZone: "UTC" }) + " UTC" }]
-                : [],
-              timestamp: new Date().toISOString(),
-            }],
+            ],
           });
 
-          await db.from("tracked_roblox_entities").update({
-            last_checked_at: new Date().toISOString(),
-            last_error: null,
-          }).eq("id", tracker.id);
+          await db
+            .from("tracked_roblox_entities")
+            .update({
+              last_checked_at: new Date().toISOString(),
+              last_error: null,
+            })
+            .eq("id", tracker.id);
 
           return json({
             found: true,
@@ -126,13 +139,15 @@ export const Route = createFileRoute("/api/roblox/force-check")({
             },
             discord_sent: true,
           });
-
         } catch (error) {
           const message = error instanceof Error ? error.message : String(error);
-          await db.from("tracked_roblox_entities").update({
-            last_checked_at: new Date().toISOString(),
-            last_error: message.slice(0, 500),
-          }).eq("id", tracker.id);
+          await db
+            .from("tracked_roblox_entities")
+            .update({
+              last_checked_at: new Date().toISOString(),
+              last_error: message.slice(0, 500),
+            })
+            .eq("id", tracker.id);
           return json({ error: message }, 502);
         }
       },

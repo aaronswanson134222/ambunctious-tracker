@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
 // Server-only helpers for the tracker bot.
 // Do NOT import from client components.
 
@@ -10,7 +12,8 @@ function isAllowedPageHost(candidate: URL, original: URL) {
     candidate.username ||
     candidate.password ||
     (candidate.port && candidate.port !== "443")
-  ) return false;
+  )
+    return false;
 
   const host = candidate.hostname.toLowerCase();
   const originalHost = original.hostname.toLowerCase();
@@ -117,12 +120,15 @@ async function fetchPublicPage(
 
 function decodeHtml(value: string): string {
   const named: Record<string, string> = {
-    amp: "&", apos: "'", gt: ">", lt: "<", nbsp: " ", quot: '"',
+    amp: "&",
+    apos: "'",
+    gt: ">",
+    lt: "<",
+    nbsp: " ",
+    quot: '"',
   };
   return value
-    .replace(/&#(\d+);/g, (_match, code: string) =>
-      String.fromCodePoint(Number(code)),
-    )
+    .replace(/&#(\d+);/g, (_match, code: string) => String.fromCodePoint(Number(code)))
     .replace(/&#x([0-9a-f]+);/gi, (_match, code: string) =>
       String.fromCodePoint(Number.parseInt(code, 16)),
     )
@@ -135,7 +141,9 @@ function visibleText(html: string): string {
       .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, " ")
       .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, " ")
       .replace(/<[^>]+>/g, " "),
-  ).replace(/\s+/g, " ").trim();
+  )
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 // -------- X (Twitter) profile scraping --------
@@ -163,32 +171,23 @@ export async function checkXProfile(handle: string): Promise<XCheckResult> {
   for (const source of sources) {
     try {
       const html = await fetchPublicPage(source, "X public timeline");
-      const escapedHandle = clean.replace(/[.*+?^$\{\}()|[\]\\]/g, "\\$&");
+      const escapedHandle = clean.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
       const statusPatterns = [
-        new RegExp(
-          `https?:\\/\\/(?:x|twitter)\\.com\\/${escapedHandle}\\/status\\/(\\d+)`,
-          "i",
-        ),
+        new RegExp(`https?:\\/\\/(?:x|twitter)\\.com\\/${escapedHandle}\\/status\\/(\\d+)`, "i"),
         /data-tweet-id=["'](\d+)["']/i,
         /["']rest_id["']\s*:\s*["'](\d+)["']/i,
       ];
-      const id = statusPatterns
-        .map((pattern) => html.match(pattern)?.[1])
-        .find(Boolean);
+      const id = statusPatterns.map((pattern) => html.match(pattern)?.[1]).find(Boolean);
       if (!id) throw new Error("No public post was present in the timeline");
 
       const tweetBlock =
         html.match(
-          new RegExp(
-            `<[^>]+data-tweet-id=["']${id}["'][^>]*>([\\s\\S]{0,12000})`,
-            "i",
-          ),
+          new RegExp(`<[^>]+data-tweet-id=["']${id}["'][^>]*>([\\s\\S]{0,12000})`, "i"),
         )?.[1] ?? html;
       const encodedText =
         tweetBlock.match(
           /<p[^>]*class=["'][^"']*timeline-Tweet-text[^"']*["'][^>]*>([\s\S]*?)<\/p>/i,
-        )?.[1] ??
-        tweetBlock.match(/["']full_text["']\s*:\s*["']((?:\\.|[^"'\\])*)["']/i)?.[1];
+        )?.[1] ?? tweetBlock.match(/["']full_text["']\s*:\s*["']((?:\\.|[^"'\\])*)["']/i)?.[1];
       const postText = encodedText
         ? visibleText(encodedText.replace(/\\n/g, " ").replace(/\\(["'\\])/g, "$1")).slice(0, 1000)
         : null;
@@ -213,8 +212,8 @@ export type PriceCheckResult = {
 };
 
 const currencyAliases: Record<string, string> = {
-  "$": "USD",
-  "US$": "USD",
+  $: "USD",
+  US$: "USD",
   "€": "EUR",
   "£": "GBP",
 };
@@ -338,13 +337,16 @@ export async function checkBigGamesUpdates(url: string): Promise<WebsiteUpdateRe
   }
 
   const html = await fetchPublicPage(new URL("https://www.biggames.io/post"), "BIG Games");
-  const links = [...html.matchAll(
-    /<a\b[^>]*href=["'](\/post\/(?!category\/)[^"'?#]+)["'][^>]*>([\s\S]*?)<\/a>/gi,
-  )];
-  const latest = links.find((match) => {
-    const text = visibleText(match[2]);
-    return text.length > 2 && !/read more/i.test(text);
-  }) ?? links[0];
+  const links = [
+    ...html.matchAll(
+      /<a\b[^>]*href=["'](\/post\/(?!category\/)[^"'?#]+)["'][^>]*>([\s\S]*?)<\/a>/gi,
+    ),
+  ];
+  const latest =
+    links.find((match) => {
+      const text = visibleText(match[2]);
+      return text.length > 2 && !/read more/i.test(text);
+    }) ?? links[0];
 
   if (!latest) throw new Error("No developer blog was found on BIG Games");
 
@@ -362,11 +364,7 @@ export async function checkBigGamesUpdates(url: string): Promise<WebsiteUpdateRe
 
 // -------- Roblox creation monitoring --------
 
-export type RobloxScanType =
-  | "catalog"
-  | "experience"
-  | "game_pass"
-  | "developer_product";
+export type RobloxScanType = "catalog" | "experience" | "game_pass" | "developer_product";
 
 export type RobloxCreation = {
   key: string;
@@ -377,15 +375,8 @@ export type RobloxCreation = {
   createdAt: string | null;
 };
 
-async function fetchRobloxJson(
-  url: URL,
-  apiKey?: string,
-): Promise<unknown> {
-  const html = await fetchPublicPage(
-    url,
-    "Roblox",
-    apiKey ? { "x-api-key": apiKey } : {},
-  );
+async function fetchRobloxJson(url: URL, apiKey?: string): Promise<unknown> {
+  const html = await fetchPublicPage(url, "Roblox", apiKey ? { "x-api-key": apiKey } : {});
   try {
     return JSON.parse(html);
   } catch {
@@ -405,17 +396,14 @@ function robloxDate(row: Record<string, unknown>) {
   return new Date(value).toISOString();
 }
 
-function rowsFromRobloxResponse(
-  value: unknown,
-  keys: string[],
-): Array<Record<string, unknown>> {
+function rowsFromRobloxResponse(value: unknown, keys: string[]): Array<Record<string, unknown>> {
   if (!value || typeof value !== "object") return [];
   const object = value as Record<string, unknown>;
   for (const key of keys) {
     const rows = object[key];
     if (Array.isArray(rows)) {
-      return rows.filter((row): row is Record<string, unknown> =>
-        Boolean(row) && typeof row === "object",
+      return rows.filter(
+        (row): row is Record<string, unknown> => Boolean(row) && typeof row === "object",
       );
     }
   }
@@ -455,27 +443,28 @@ export async function checkRobloxCreations(
   gamesUrl.searchParams.set("limit", "25");
 
   const needsGames =
-    enabled.has("experience") ||
-    enabled.has("game_pass") ||
-    enabled.has("developer_product");
+    enabled.has("experience") || enabled.has("game_pass") || enabled.has("developer_product");
   const [catalogResult, gamesResult] = await Promise.all([
     enabled.has("catalog")
       ? fetchRobloxJson(catalogUrl).then(
           (value) => ({ value, error: null as Error | null }),
-          (error) => ({ value: null, error: error instanceof Error ? error : new Error(String(error)) }),
+          (error) => ({
+            value: null,
+            error: error instanceof Error ? error : new Error(String(error)),
+          }),
         )
       : Promise.resolve({ value: null, error: null }),
     needsGames
       ? fetchRobloxJson(gamesUrl).then(
           (value) => ({ value, error: null as Error | null }),
-          (error) => ({ value: null, error: error instanceof Error ? error : new Error(String(error)) }),
+          (error) => ({
+            value: null,
+            error: error instanceof Error ? error : new Error(String(error)),
+          }),
         )
       : Promise.resolve({ value: null, error: null }),
   ]);
-  if (
-    (enabled.has("catalog") && catalogResult.error) &&
-    (needsGames && gamesResult.error)
-  ) {
+  if (enabled.has("catalog") && catalogResult.error && needsGames && gamesResult.error) {
     throw new Error(
       `Roblox checks failed: ${catalogResult.error.message}; ${gamesResult.error.message}`,
     );
@@ -512,17 +501,18 @@ export async function checkRobloxCreations(
         id,
         kind: "experience",
         name: typeof row.name === "string" ? row.name.slice(0, 120) : `Roblox experience ${id}`,
-        url: Number.isSafeInteger(placeId) && placeId > 0
-          ? `https://www.roblox.com/games/${placeId}`
-          : `https://www.roblox.com/games?Keyword=${encodeURIComponent(String(id))}`,
+        url:
+          Number.isSafeInteger(placeId) && placeId > 0
+            ? `https://www.roblox.com/games/${placeId}`
+            : `https://www.roblox.com/games?Keyword=${encodeURIComponent(String(id))}`,
         createdAt: robloxDate(row),
       });
     }
   }
 
   const monetizationTypes = [
-    enabled.has("game_pass") ? "game_pass" as const : null,
-    enabled.has("developer_product") ? "developer_product" as const : null,
+    enabled.has("game_pass") ? ("game_pass" as const) : null,
+    enabled.has("developer_product") ? ("developer_product" as const) : null,
   ].filter((value): value is "game_pass" | "developer_product" => value !== null);
 
   if (monetizationTypes.length) {
@@ -540,9 +530,10 @@ export async function checkRobloxCreations(
       if (!Number.isSafeInteger(universeId) || universeId <= 0) continue;
 
       for (const kind of monetizationTypes) {
-        const endpoint = kind === "game_pass"
-          ? `https://apis.roblox.com/game-passes/v1/universes/${universeId}/game-passes/creator`
-          : `https://apis.roblox.com/developer-products/v2/universes/${universeId}/developer-products/creator`;
+        const endpoint =
+          kind === "game_pass"
+            ? `https://apis.roblox.com/game-passes/v1/universes/${universeId}/game-passes/creator`
+            : `https://apis.roblox.com/developer-products/v2/universes/${universeId}/developer-products/creator`;
         const url = new URL(endpoint);
         url.searchParams.set("maxPageSize", "100");
         let response: unknown;
@@ -555,9 +546,7 @@ export async function checkRobloxCreations(
         }
         const rows = rowsFromRobloxResponse(
           response,
-          kind === "game_pass"
-            ? ["gamePasses", "data"]
-            : ["developerProducts", "data"],
+          kind === "game_pass" ? ["gamePasses", "data"] : ["developerProducts", "data"],
         );
         for (const row of rows) {
           const id = Number(row.id ?? row.gamePassId ?? row.productId);
@@ -575,11 +564,12 @@ export async function checkRobloxCreations(
             id,
             kind,
             name,
-            url: kind === "game_pass"
-              ? `https://www.roblox.com/game-pass/${id}`
-              : Number.isSafeInteger(placeId) && placeId > 0
-                ? `https://www.roblox.com/games/${placeId}`
-                : `https://create.roblox.com/dashboard/creations/experiences/${universeId}/monetization`,
+            url:
+              kind === "game_pass"
+                ? `https://www.roblox.com/game-pass/${id}`
+                : Number.isSafeInteger(placeId) && placeId > 0
+                  ? `https://www.roblox.com/games/${placeId}`
+                  : `https://create.roblox.com/dashboard/creations/experiences/${universeId}/monetization`,
             createdAt,
           });
         }
@@ -587,9 +577,7 @@ export async function checkRobloxCreations(
     }
   }
 
-  return creations.filter((item) =>
-    !item.createdAt || Date.parse(item.createdAt) >= cutoff,
-  );
+  return creations.filter((item) => !item.createdAt || Date.parse(item.createdAt) >= cutoff);
 }
 
 // -------- Individual Roblox experience product monitoring --------
@@ -610,10 +598,10 @@ export async function resolveRobloxUniverseId(
   if (!Number.isSafeInteger(placeId) || placeId <= 0) {
     throw new Error("Invalid Roblox game/place ID");
   }
-  const value = await fetchRobloxJson(
+  const value = (await fetchRobloxJson(
     new URL(`https://apis.roblox.com/universes/v1/places/${placeId}/universe`),
     openCloudApiKey?.trim() || undefined,
-  ) as Record<string, unknown>;
+  )) as Record<string, unknown>;
   const universeId = Number(value.universeId);
   if (!Number.isSafeInteger(universeId) || universeId <= 0) {
     throw new Error("Roblox could not resolve that game ID");
@@ -651,11 +639,12 @@ export async function checkRobloxExperienceProducts(
       key: `game_pass:${universeId}:${id}`,
       id,
       kind: "game_pass",
-      name: typeof row.name === "string"
-        ? row.name.slice(0, 120)
-        : typeof row.displayName === "string"
-          ? row.displayName.slice(0, 120)
-          : `Game pass ${id}`,
+      name:
+        typeof row.name === "string"
+          ? row.name.slice(0, 120)
+          : typeof row.displayName === "string"
+            ? row.displayName.slice(0, 120)
+            : `Game pass ${id}`,
       url: `https://www.roblox.com/game-pass/${id}`,
       createdAt,
     });
@@ -673,17 +662,12 @@ export async function checkRobloxExperienceProducts(
     if (nextPageCursor) {
       developerProductUrl.searchParams.set("cursor", nextPageCursor);
     }
-    const developerResponse = await fetchRobloxJson(developerProductUrl) as Record<string, unknown>;
-    for (const row of rowsFromRobloxResponse(
-      developerResponse,
-      ["developerProducts", "data"],
-    )) {
-      const id = Number(
-        row.DeveloperProductId ??
-        row.TargetId ??
-        row.id ??
-        row.productId,
-      );
+    const developerResponse = (await fetchRobloxJson(developerProductUrl)) as Record<
+      string,
+      unknown
+    >;
+    for (const row of rowsFromRobloxResponse(developerResponse, ["developerProducts", "data"])) {
+      const id = Number(row.DeveloperProductId ?? row.TargetId ?? row.id ?? row.productId);
       if (!Number.isSafeInteger(id) || id <= 0) continue;
       const createdAt = robloxDate(row);
       const rawName = row.Name ?? row.displayName ?? row.name;
@@ -691,9 +675,7 @@ export async function checkRobloxExperienceProducts(
         key: `developer_product:${universeId}:${id}`,
         id,
         kind: "developer_product",
-        name: typeof rawName === "string"
-          ? rawName.slice(0, 120)
-          : `Developer product ${id}`,
+        name: typeof rawName === "string" ? rawName.slice(0, 120) : `Developer product ${id}`,
         url: `https://www.roblox.com/games/${placeId}#!/store`,
         createdAt,
       });
@@ -716,9 +698,7 @@ export async function sendDiscord(payload: {
   content?: string;
   embeds?: Array<Record<string, unknown>>;
 }): Promise<string | null> {
-  const webhook =
-    process.env.DISCORD_WEBHOOK_URL ??
-    process.env.DISCORD_WEBHOOK;
+  const webhook = process.env.DISCORD_WEBHOOK_URL ?? process.env.DISCORD_WEBHOOK;
   if (!webhook) {
     throw new Error(
       "Discord webhook is not configured. Add DISCORD_WEBHOOK_URL in project secrets.",
@@ -769,15 +749,13 @@ export async function sendDiscord(payload: {
       clearTimeout(timeout);
     }
     if (res.ok) {
-      const responseBody = await res.json().catch(() => null) as { id?: unknown } | null;
+      const responseBody = (await res.json().catch(() => null)) as { id?: unknown } | null;
       return typeof responseBody?.id === "string" ? responseBody.id : null;
     }
 
     const responseText = await res.text();
     if (attempt === 3 || (res.status < 500 && res.status !== 429)) {
-      throw new Error(
-        `Discord webhook ${res.status}: ${responseText.slice(0, 240)}`,
-      );
+      throw new Error(`Discord webhook ${res.status}: ${responseText.slice(0, 240)}`);
     }
     let delay = 500 * attempt;
     if (res.status === 429) {
@@ -830,4 +808,3 @@ export async function editDiscordMessage(
   }
   return true;
 }
-
