@@ -171,7 +171,10 @@ async function getUser(token: string) {
   try {
     const ownerTok = process.env.OWNER_BEARER_TOKEN;
     const ownerEmail = process.env.OWNER_EMAIL || null;
+    // Accept either env-set owner token or the stored owner token in the JSON DB
+    const storedOwnerTok = (store.secrets || {}).owner_bearer_token || (store.secrets || {}).owner_bearer_token;
     if (ownerTok && token === ownerTok) return { data: { user: { email: ownerEmail } }, error: null };
+    if (storedOwnerTok && token === storedOwnerTok) return { data: { user: { email: ownerEmail || store.secrets.tracker_owner_email || null } }, error: null };
     const user = (store.users || []).find((u: any) => u.token === token);
     if (user) return { data: { user: { email: user.email } }, error: null };
     return { data: null, error: new Error('User not found') };
