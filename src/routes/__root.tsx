@@ -13,12 +13,6 @@ import { useEffect, type ReactNode } from "react";
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { Toaster } from "@/components/ui/sonner";
-import { configureSupabase } from "@/integrations/supabase/client";
-
-const DEFAULT_SUPABASE_CONFIG = {
-  url: "https://uikjvsfdcomkamjazjyq.supabase.co",
-  publishableKey: "sb_publishable_kibF6dvgyq6Fqh4BJE4s7A_j6_uUrWH",
-};
 
 function NotFoundComponent() {
   return (
@@ -79,18 +73,11 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
   );
 }
 
-const getPublicSupabaseConfig = createServerFn({ method: "GET" }).handler(async () => {
-  return {
-    url: process.env.SUPABASE_URL || DEFAULT_SUPABASE_CONFIG.url,
-    publishableKey: process.env.SUPABASE_PUBLISHABLE_KEY || DEFAULT_SUPABASE_CONFIG.publishableKey,
-  };
-});
 
 const SOCIAL_IMAGE =
   "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/64ef8a7e-f1f2-4853-82a0-93052d8f91f2/id-preview-df845111--4643c934-856e-487c-b22f-b0ba8a7abd8c.lovable.app-1784590112283.png";
 
 export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
-  loader: () => getPublicSupabaseConfig(),
   head: () => ({
     meta: [
       { charSet: "utf-8" },
@@ -175,8 +162,6 @@ function OneMinuteScanUiSync() {
 
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
-  const publicSupabaseConfig = Route.useLoaderData();
-  configureSupabase(publicSupabaseConfig);
   const tabClass =
     "inline-flex h-11 min-w-24 items-center justify-center gap-2 rounded-xl px-4 text-sm font-semibold text-muted-foreground transition hover:bg-white/5 hover:text-foreground";
   const activeTabClass =
@@ -202,13 +187,6 @@ function RootComponent() {
           activeProps={{ className: `${tabClass} ${activeTabClass}` }}
         >
           ☰ Menu
-        </Link>
-        <Link
-          to="/supabase-settings"
-          className={tabClass}
-          activeProps={{ className: `${tabClass} ${activeTabClass}` }}
-        >
-          ⚙ Supabase
         </Link>
       </nav>
       <div className="pb-24">

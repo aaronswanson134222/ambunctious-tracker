@@ -32,6 +32,20 @@ function createSupabaseFetch(supabaseKey: string): typeof fetch {
 
 export const requireSupabaseAuth = createMiddleware({ type: "function" }).server(
   async ({ next }) => {
+    const request = getRequest();
+    if (!request?.headers) throw new Error("Unauthorized: No request headers available");
+    const authHeader = request.headers.get("authorization");
+    if (!authHeader || !authHeader.startsWith("Bearer ")) throw new Error("Unauthorized: Missing bearer token");
+    const token = authHeader.slice(7).trim();
+    const ownerToken = process.env.OWNER_BEARER_TOKEN;
+    const ownerEmail = process.env.OWNER_EMAIL || null;
+    if (ownerToken && token === ownerToken) {
+      return next({ context: { userId: "owner", claims: { email: ownerEmail } } });
+    }
+    throw new Error("Unauthorized: Invalid token");
+  },
+);
+  async ({ next }) => {
     const SUPABASE_URL = process.env.SUPABASE_URL;
     const SUPABASE_PUBLISHABLE_KEY = process.env.SUPABASE_PUBLISHABLE_KEY;
 
