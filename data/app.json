@@ -1,0 +1,14 @@
+{
+  "secrets": {
+    "tracker_pin_hash": "301066",
+    "tracker_owner_email": "owner@local",
+    "tracker_internal_auth_password": "internal-secret",
+    "tracker_owner_email_verified": true
+  },
+  "users": [],
+  "tracked_roblox_experiences": [],
+  "tracked_products": [],
+  "tracker_hourly_reports": [],
+  "tracker_pin_attempts": [],
+  "locks": {}
+}
