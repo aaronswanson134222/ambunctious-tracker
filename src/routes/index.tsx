@@ -29,7 +29,8 @@ import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import type { User } from "@supabase/supabase-js";
+
+type User = { id?: string; email?: string } | null;
 import { AB_BANNER, AB_MARK } from "@/lib/brand-assets";
 import {
   ProductDetailsDialog,

@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import type { SupabaseClient } from "@supabase/supabase-js";
+// Supabase client types removed; using a loose DB client shape
 import type { Database } from "@/integrations/supabase/types";
 
 import {
@@ -18,8 +18,8 @@ import {
   type RobloxPreviewKind,
 } from "@/lib/roblox-product-preview.server";
 
-type AdminClient = SupabaseClient<Database>;
-type LooseDb = { from: (table: string) => any; rpc: (...args: any[]) => Promise<any> };
+type AdminClient = { from: (table: string) => any; rpc: (...args: any[]) => Promise<any> };
+type LooseDb = AdminClient;
 
 type ScanMetrics = {
   x_checked: number;

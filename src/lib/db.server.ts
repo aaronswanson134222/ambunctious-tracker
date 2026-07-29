@@ -170,7 +170,22 @@ async function rpc(name: string, params: Record<string, any> = {}) {
         const candidate = params.pin;
         const row = db.prepare(`SELECT value FROM secrets WHERE name = ?`).get('tracker_pin_hash');
         // NOTE: for now, plain compare (migration should convert to bcrypt/secure). Treat as string match.
-        return { data: row && row.value === candidate, error: null };
+        const ok = row && row.value === candidate;
+        if (!ok) return { data: null, error: null };
+        // Return owner credentials expected by legacy code path
+        const ownerRow = db.prepare(`SELECT value FROM secrets WHERE name = ?`).get('tracker_owner_email');
+        const pwRow = db.prepare(`SELECT value FROM secrets WHERE name = ?`).get('tracker_internal_auth_password');
+        const ownerEmail = ownerRow ? ownerRow.value : null;
+        const internalPassword = pwRow ? pwRow.value : null;
+        return {
+          data: [
+            {
+              owner_email: ownerEmail,
+              internal_password: internalPassword,
+            },
+          ],
+          error: null,
+        };
       }
       case 'get_private_alert_secrets': {
         const row = db.prepare(`SELECT value FROM secrets WHERE name = ?`).get('private_alerts');

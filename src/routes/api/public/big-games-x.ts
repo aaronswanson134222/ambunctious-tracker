@@ -1,5 +1,4 @@
 import { createFileRoute } from "@tanstack/react-router";
-import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
 import { checkXProfile, sendDiscord } from "@/lib/tracker.server";
 
@@ -10,7 +9,7 @@ function postId(url: string | null) {
 }
 
 async function booleanRpc(
-  client: SupabaseClient<Database>,
+  client: { rpc: (...args: any[]) => Promise<any> },
   functionName: string,
   args: Record<string, unknown>,
 ) {
@@ -24,7 +23,7 @@ async function booleanRpc(
   return data === true;
 }
 
-async function authorised(request: Request, client: SupabaseClient<Database>) {
+async function authorised(request: Request, client: { rpc: (...args: any[]) => Promise<any> }) {
   const header = request.headers.get("authorization");
   if (!header?.startsWith("Bearer ")) return false;
   const token = header.slice(7).trim();
