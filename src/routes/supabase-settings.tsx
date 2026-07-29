@@ -70,7 +70,10 @@ function SupabaseSettings() {
     try {
       const response = await fetch(`${config.url}/rest/v1/`, {
         method: "GET",
-        headers: { apikey: config.publishableKey },
+        headers: {
+          apikey: config.publishableKey,
+          Authorization: `Bearer ${config.publishableKey}`,
+        },
       });
       if (!response.ok && response.status !== 404)
         throw new Error(`Supabase returned HTTP ${response.status}`);
