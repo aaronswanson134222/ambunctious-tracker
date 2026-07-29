@@ -125,7 +125,8 @@ async function rpc(name: string, params: Record<string, any> = {}) {
       case 'verify_tracker_owner_email':
         return { data: store.secrets.tracker_owner_email === params.candidate, error: null };
       case 'authenticate_tracker_pin': {
-        const candidate = params.pin;
+        // Support both { pin } and older { candidate } param keys for resilience
+        const candidate = params.pin ?? params.candidate;
         const ok = store.secrets.tracker_pin_hash === candidate;
         if (!ok) return { data: null, error: null };
         return {
